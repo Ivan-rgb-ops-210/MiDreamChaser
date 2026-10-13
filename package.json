@@ -1,0 +1,9 @@
+{
+  "name": "midreamchaser-workspace",
+  "private": true,
+  "scripts": {
+    "dev": "npm --prefix DreamChaser run dev",
+    "build": "npm --prefix DreamChaser run build",
+    "preview": "npm --prefix DreamChaser run preview"
+  }
+}
