@@ -1,34 +1,47 @@
-import { defineConfig, loadEnv } from 'vite';
-import react from '@vitejs/plugin-react';
+import { defineConfig, loadEnv } from "vite";
+import react from "@vitejs/plugin-react";
 
-const API_ROOT = 'https://footballdata.io/api/v1';
+const API_ROOT = "https://footballdata.io/api/v1";
 
 function footballDataApi(apiKey) {
   const cache = new Map();
 
-  const middleware = async (req, res, _next, route = 'competition') => {
-    res.setHeader('Content-Type', 'application/json; charset=utf-8');
-    res.setHeader('Cache-Control', 'no-store');
+  const middleware = async (req, res, _next, route = "competition") => {
+    res.setHeader("Content-Type", "application/json; charset=utf-8");
+    res.setHeader("Cache-Control", "no-store");
 
     if (!apiKey) {
       res.statusCode = 503;
-      res.end(JSON.stringify({ error: 'Falta FOOTBALL_DATA_IO_API_KEY en el archivo .env.' }));
+      res.end(
+        JSON.stringify({
+          error: "Falta FOOTBALL_DATA_IO_API_KEY en el archivo .env.",
+        }),
+      );
       return;
     }
 
-    const requestUrl = new URL(req.url, 'http://localhost');
-    const leagueId = requestUrl.searchParams.get('leagueId');
-    const teamId = requestUrl.searchParams.get('teamId');
-    const playerId = requestUrl.searchParams.get('playerId');
-    const idIsValid = (value) => /^\d+$/.test(value || '');
-    if (route === 'team' && !idIsValid(teamId) || route === 'player' && !idIsValid(playerId) || route === 'competition' && !idIsValid(leagueId)) {
+    const requestUrl = new URL(req.url, "http://localhost");
+    const leagueId = requestUrl.searchParams.get("leagueId");
+    const teamId = requestUrl.searchParams.get("teamId");
+    const playerId = requestUrl.searchParams.get("playerId");
+    const idIsValid = (value) => /^\d+$/.test(value || "");
+    if (
+      (route === "team" && !idIsValid(teamId)) ||
+      (route === "player" && !idIsValid(playerId)) ||
+      (route === "competition" && !idIsValid(leagueId))
+    ) {
       res.statusCode = 400;
-      res.end(JSON.stringify({ error: 'Falta un identificador válido para consultar los datos.' }));
+      res.end(
+        JSON.stringify({
+          error: "Falta un identificador válido para consultar los datos.",
+        }),
+      );
       return;
     }
 
-    const cacheId = route === 'team' ? teamId : route === 'player' ? playerId : leagueId;
-    const cacheKey = route === 'leagues' ? 'leagues' : `${route}:${cacheId}`;
+    const cacheId =
+      route === "team" ? teamId : route === "player" ? playerId : leagueId;
+    const cacheKey = route === "leagues" ? "leagues" : `${route}:${cacheId}`;
     const cached = cache.get(cacheKey);
     if (cached && Date.now() - cached.cachedAt < 60 * 60 * 1000) {
       res.end(JSON.stringify(cached.data));
@@ -48,8 +61,13 @@ function footballDataApi(apiKey) {
           body = null;
         }
         if (!response.ok || body?.success === false) {
-          const message = body?.message || body?.error?.message || (typeof body?.error === 'string' ? body.error : null);
-          const error = new Error(message || `Footballdata.io respondió ${response.status}.`);
+          const message =
+            body?.message ||
+            body?.error?.message ||
+            (typeof body?.error === "string" ? body.error : null);
+          const error = new Error(
+            message || `Footballdata.io respondió ${response.status}.`,
+          );
           error.status = response.status === 200 ? 502 : response.status;
           error.endpoint = path;
           throw error;
@@ -57,26 +75,34 @@ function footballDataApi(apiKey) {
         return body;
       };
 
-      if (route === 'leagues') {
-        const response = await get('/leagues?lang=es');
-        const data = { leagues: Array.isArray(response.data) ? response.data : [], meta: response.meta || {} };
+      if (route === "leagues") {
+        const response = await get("/leagues?lang=es");
+        const data = {
+          leagues: Array.isArray(response.data) ? response.data : [],
+          meta: response.meta || {},
+        };
         cache.set(cacheKey, { data, cachedAt: Date.now() });
         res.end(JSON.stringify(data));
         return;
       }
 
-      if (route === 'team') {
-        const search = new URLSearchParams({ limit: '100' });
-        if (leagueId) search.set('league_id', leagueId);
-        const seasonId = requestUrl.searchParams.get('seasonId');
-        if (seasonId && /^\d+$/.test(seasonId)) search.set('season_id', seasonId);
+      if (route === "team") {
+        const search = new URLSearchParams({ limit: "100" });
+        if (leagueId) search.set("league_id", leagueId);
+        const seasonId = requestUrl.searchParams.get("seasonId");
+        if (seasonId && /^\d+$/.test(seasonId))
+          search.set("season_id", seasonId);
         const [teamResponse, playersResponse] = await Promise.all([
           get(`/teams/${teamId}`),
           get(`/teams/${teamId}/players?${search.toString()}`),
         ]);
         const team = teamResponse.data || {};
         const playersData = playersResponse.data;
-        const playerRows = Array.isArray(playersData) ? playersData : Array.isArray(playersData?.players) ? playersData.players : [];
+        const playerRows = Array.isArray(playersData)
+          ? playersData
+          : Array.isArray(playersData?.players)
+            ? playersData.players
+            : [];
         const data = {
           team,
           players: playerRows.map((row, index) => {
@@ -84,11 +110,20 @@ function footballDataApi(apiKey) {
             return {
               ...player,
               player_id: player.player_id || player.id || `${teamId}-${index}`,
-              player_name: player.player_name || player.name || player.full_name || 'Jugador',
-              position: player.position || player.role || '',
-              nationality: player.nationality || player.country || '',
+              player_name:
+                player.player_name ||
+                player.name ||
+                player.full_name ||
+                "Jugador",
+              position: player.position || player.role || "",
+              nationality: player.nationality || player.country || "",
               age: player.age,
-              image: player.player_image || player.profile_image || player.photo || player.image || '',
+              image:
+                player.player_image ||
+                player.profile_image ||
+                player.photo ||
+                player.image ||
+                "",
             };
           }),
         };
@@ -97,18 +132,28 @@ function footballDataApi(apiKey) {
         return;
       }
 
-      if (route === 'player') {
+      if (route === "player") {
         const statsQuery = new URLSearchParams();
-        for (const key of ['leagueId', 'teamId', 'seasonId']) {
+        for (const key of ["leagueId", "teamId", "seasonId"]) {
           const value = requestUrl.searchParams.get(key);
-          if (value && /^\d+$/.test(value)) statsQuery.set(key.replace(/[A-Z]/g, (letter) => `_${letter.toLowerCase()}`), value);
+          if (value && /^\d+$/.test(value))
+            statsQuery.set(
+              key.replace(/[A-Z]/g, (letter) => `_${letter.toLowerCase()}`),
+              value,
+            );
         }
         const profile = await get(`/players/${playerId}`);
         let stats = [];
         try {
-          const statsResponse = await get(`/players/${playerId}/stats${statsQuery.size ? `?${statsQuery.toString()}` : ''}`);
+          const statsResponse = await get(
+            `/players/${playerId}/stats${statsQuery.size ? `?${statsQuery.toString()}` : ""}`,
+          );
           const statsData = statsResponse.data;
-          stats = Array.isArray(statsData?.stats) ? statsData.stats : Array.isArray(statsData) ? statsData : [];
+          stats = Array.isArray(statsData?.stats)
+            ? statsData.stats
+            : Array.isArray(statsData)
+              ? statsData
+              : [];
         } catch {
           // The profile remains useful when the account has no access to player statistics.
         }
@@ -131,12 +176,25 @@ function footballDataApi(apiKey) {
       let rows = Array.isArray(payload.standings) ? payload.standings : [];
       if (!rows.length) {
         hasStandings = false;
-        const teamResponse = await get(`/leagues/${leagueId}/teams?limit=100&lang=es`);
+        const teamResponse = await get(
+          `/leagues/${leagueId}/teams?limit=100&lang=es`,
+        );
         const teamData = teamResponse.data;
-        rows = Array.isArray(teamData) ? teamData : Array.isArray(teamData?.teams) ? teamData.teams : [];
+        rows = Array.isArray(teamData)
+          ? teamData
+          : Array.isArray(teamData?.teams)
+            ? teamData.teams
+            : [];
         if (!payload.league && rows.length) {
           const firstTeam = rows[0];
-          payload = { ...payload, league: { league_id: Number(leagueId), name: firstTeam.league_name, country: firstTeam.country } };
+          payload = {
+            ...payload,
+            league: {
+              league_id: Number(leagueId),
+              name: firstTeam.league_name,
+              country: firstTeam.country,
+            },
+          };
         }
       }
 
@@ -144,10 +202,11 @@ function footballDataApi(apiKey) {
         const team = row.team || row;
         return {
           id: team.team_id || team.id || `${leagueId}-${index}`,
-          name: team.team_name || team.name || team.full_name || 'Club',
-          shortName: team.short_name || team.shortName || team.team_name || team.name,
+          name: team.team_name || team.name || team.full_name || "Club",
+          shortName:
+            team.short_name || team.shortName || team.team_name || team.name,
           tla: team.tla || team.short_name,
-          crest: team.team_logo || team.logo || team.crest || '',
+          crest: team.team_logo || team.logo || team.crest || "",
           position: row.position,
           playedGames: row.played ?? row.played_games ?? row.playedGames,
           won: row.won,
@@ -161,8 +220,8 @@ function footballDataApi(apiKey) {
       });
       const result = {
         competition: payload.league || { league_id: Number(leagueId) },
-        season: payload.season?.year || payload.season?.name || '',
-        seasonId: payload.season?.season_id || '',
+        season: payload.season?.year || payload.season?.name || "",
+        seasonId: payload.season?.season_id || "",
         teams,
         standings: hasStandings,
         meta: response?.meta || {},
@@ -171,28 +230,42 @@ function footballDataApi(apiKey) {
       res.end(JSON.stringify(result));
     } catch (error) {
       res.statusCode = error.status || 502;
-      res.end(JSON.stringify({ error: error.message, endpoint: error.endpoint }));
+      res.end(
+        JSON.stringify({ error: error.message, endpoint: error.endpoint }),
+      );
     }
   };
 
   return {
-    name: 'footballdata-io-api',
+    name: "footballdata-io-api",
     configureServer(server) {
-      server.middlewares.use('/api/football/leagues', (req, res, next) => middleware(req, res, next, 'leagues'));
-      server.middlewares.use('/api/football/team', (req, res, next) => middleware(req, res, next, 'team'));
-      server.middlewares.use('/api/football/player', (req, res, next) => middleware(req, res, next, 'player'));
-      server.middlewares.use('/api/football/competition', middleware);
+      server.middlewares.use("/api/football/leagues", (req, res, next) =>
+        middleware(req, res, next, "leagues"),
+      );
+      server.middlewares.use("/api/football/team", (req, res, next) =>
+        middleware(req, res, next, "team"),
+      );
+      server.middlewares.use("/api/football/player", (req, res, next) =>
+        middleware(req, res, next, "player"),
+      );
+      server.middlewares.use("/api/football/competition", middleware);
     },
     configurePreviewServer(server) {
-      server.middlewares.use('/api/football/leagues', (req, res, next) => middleware(req, res, next, 'leagues'));
-      server.middlewares.use('/api/football/team', (req, res, next) => middleware(req, res, next, 'team'));
-      server.middlewares.use('/api/football/player', (req, res, next) => middleware(req, res, next, 'player'));
-      server.middlewares.use('/api/football/competition', middleware);
+      server.middlewares.use("/api/football/leagues", (req, res, next) =>
+        middleware(req, res, next, "leagues"),
+      );
+      server.middlewares.use("/api/football/team", (req, res, next) =>
+        middleware(req, res, next, "team"),
+      );
+      server.middlewares.use("/api/football/player", (req, res, next) =>
+        middleware(req, res, next, "player"),
+      );
+      server.middlewares.use("/api/football/competition", middleware);
     },
   };
 }
 
 export default defineConfig(({ mode }) => {
-  const env = loadEnv(mode, process.cwd(), '');
+  const env = loadEnv(mode, process.cwd(), "");
   return { plugins: [react(), footballDataApi(env.FOOTBALL_DATA_IO_API_KEY)] };
 });
