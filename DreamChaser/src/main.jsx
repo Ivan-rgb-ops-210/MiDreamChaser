@@ -5,9 +5,7 @@ import "./styles.css";
 function Mark() {
   return (
     <a className="brand" href="#home" aria-label="Dreamchaser inicio">
-      <span className="brand-icon">
-        D<span></span>
-      </span>
+      <img className="brand-logo" src="/dreamchaser-logo.png" alt="" />
       <span>
         DREAMCHASER<small>PLAYER CAREER SIMULATOR</small>
       </span>
@@ -142,11 +140,16 @@ function App() {
             <span className="live-dot" /> TU CARRERA. TUS REGLAS.{" "}
             <span className="overline-line" />
           </div>
-          <h1>
-            Dream
-            <br />
-            <i>Chaser.</i>
-          </h1>
+          <div className="hero-title-row">
+            <h1>
+              Dream
+              <br />
+              <i>Chaser.</i>
+            </h1>
+            <div className="hero-logo-frame">
+              <img src="/dreamchaser-logo.png" alt="" />
+            </div>
+          </div>
           <p className="intro">
             El fútbol no se mira desde la tribuna. Se vive desde adentro. Creá
             tu jugador, ganate un lugar y escribí una carrera que sea solo tuya.
@@ -184,24 +187,6 @@ function App() {
         </div>
         <div className="vertical-label">
           DREAMCHASER — PLAYER CAREER SIMULATOR
-        </div>
-        <div className="match-float">
-          <div className="mf-top">
-            <span>DEBUT PROFESIONAL</span>
-            <span className="mf-live">● EN VIVO</span>
-          </div>
-          <div className="scoreline">
-            <div className="shield">DC</div>
-            <strong>
-              1 <small>—</small> 0
-            </strong>
-            <div className="shield away">FC</div>
-          </div>
-          <div className="mf-bottom">
-            <span>MIN. 67</span>
-            <span>Vas a entrar.</span>
-            <b>↗</b>
-          </div>
         </div>
       </section>
       <section className="intro-band" id="experiencia">
@@ -297,7 +282,7 @@ function App() {
             <div className="news-chip">
               <span className="news-pulse" /> RUMOR DE MERCADO{" "}
               <b>“¿Nuevo destino?”</b>
-              <small></small>
+              <small>— DANTE ROMANO</small>
             </div>
           </article>
         </div>
