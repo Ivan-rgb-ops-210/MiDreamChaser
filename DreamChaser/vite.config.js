@@ -86,6 +86,30 @@ function footballDataApi(apiKey) {
         return;
       }
 
+      if (route === "nationalities") {
+        const firstPage = await get("/countries?limit=100&page=1");
+        const unpackCountries = (payload) => Array.isArray(payload) ? payload : Array.isArray(payload?.countries) ? payload.countries : [];
+        const rows = [...unpackCountries(firstPage.data)];
+        const totalPages = Math.min(Number(firstPage.meta?.pagination?.total_pages) || 1, 10);
+        for (let page = 2; page <= totalPages; page += 1) {
+          const nextPage = await get(`/countries?limit=100&page=${page}`);
+          rows.push(...unpackCountries(nextPage.data));
+        }
+        const countryRows = rows.map((row) => {
+          const country = typeof row === "string" ? row : row.country || row.country_name || row.name;
+          const rawName = typeof country === "string" ? country : country?.name;
+          const name = rawName?.replace(/^https?:\/\/\S+\s*/i, "").trim();
+          if (!name) return null;
+          return { name, code: row.country_code || row.iso2 || country?.iso2 || name, flag: row.flag_emoji || row.flag || country?.flag_emoji || "" };
+        }).filter(Boolean);
+        const uniqueCountries = new Map(countryRows.map((country) => [country.name.toLocaleLowerCase(), country]));
+        const nationalities = [...uniqueCountries.values()].sort((a, b) => a.name.localeCompare(b.name, "es"));
+        const data = { nationalities, meta: firstPage.meta || {} };
+        cache.set(cacheKey, { data, cachedAt: Date.now() });
+        res.end(JSON.stringify(data));
+        return;
+      }
+
       if (route === "team") {
         const search = new URLSearchParams({ limit: "100" });
         if (leagueId) search.set("league_id", leagueId);
@@ -242,6 +266,7 @@ function footballDataApi(apiKey) {
       server.middlewares.use("/api/football/leagues", (req, res, next) =>
         middleware(req, res, next, "leagues"),
       );
+      server.middlewares.use("/api/football/nationalities", (req, res, next) => middleware(req, res, next, "nationalities"));
       server.middlewares.use("/api/football/team", (req, res, next) =>
         middleware(req, res, next, "team"),
       );
@@ -254,6 +279,7 @@ function footballDataApi(apiKey) {
       server.middlewares.use("/api/football/leagues", (req, res, next) =>
         middleware(req, res, next, "leagues"),
       );
+      server.middlewares.use("/api/football/nationalities", (req, res, next) => middleware(req, res, next, "nationalities"));
       server.middlewares.use("/api/football/team", (req, res, next) =>
         middleware(req, res, next, "team"),
       );
