@@ -945,18 +945,21 @@ footer > span {
 .player-card { height:420px;max-width:350px;width:100%;justify-self:center;border:1px solid #d9efc755;padding:19px;position:relative;overflow:hidden;background:linear-gradient(145deg,#a4ee5520,#17281fbb 47%,#0b130fef);box-shadow:0 30px 90px #0009;transform:rotate(2deg); }
 .player-card:before { content:"";position:absolute;inset:0;background:repeating-linear-gradient(135deg,transparent 0 17px,#ffffff07 18px 19px); }
 .card-top,.card-bottom { display:flex;justify-content:space-between;position:relative;color:#d4e2ce;font-size:8px;letter-spacing:1.4px; }
-.card-silhouette { height:230px;display:grid;place-items:center;position:relative; }
+.card-silhouette { height:165px;display:grid;place-items:center;position:relative; }
 .silhouette-number { position:absolute;right:4px;top:7px;font:800 128px/.9 var(--display);color:#a4ee551c; }
-.player-orb { width:165px;height:165px;border-radius:50%;display:grid;place-items:center;font-size:76px;color:#a4ee55;background:radial-gradient(circle,#a4ee5540,#a4ee5504 70%);border:1px solid #a4ee5540;box-shadow:0 0 70px #a4ee5514; }
-.card-data { display:grid;gap:6px;position:relative;border-top:1px solid #ffffff24;padding-top:15px; }
-.card-data small { font-size:7px;letter-spacing:1.6px;color:#a4ee55; }
-.card-data strong { font:700 34px/.95 var(--display);text-transform:uppercase;overflow-wrap:anywhere; }
+.player-orb { width:116px;height:116px;border-radius:50%;display:grid;place-items:center;font-size:55px;color:#a4ee55;background:radial-gradient(circle,#a4ee5540,#a4ee5504 70%);border:1px solid #a4ee5540;box-shadow:0 0 70px #a4ee5514; }
+.card-emblems { position:relative;display:flex;justify-content:center;align-items:center;gap:24px;min-height:88px;margin:0 0 12px; }
+.card-emblem { display:grid;justify-items:center;align-content:center;gap:4px;min-width:90px;max-width:130px; }
+.emblem-label { color:#a4ee55;font-size:6px;letter-spacing:1.5px;font-weight:700; }
+.national-flag { width:52px;height:36px;object-fit:cover;border:1px solid #ffffff55;border-radius:2px;box-shadow:0 4px 12px #0007; }
+.team-crest { width:48px;height:48px;object-fit:contain;filter:drop-shadow(0 4px 6px #0008); }
+.national-flag-emoji,.emblem-placeholder { width:48px;height:48px;display:grid;place-items:center;font-size:38px;color:#dbe8d5; }
+.emblem-placeholder { border:1px solid #a4ee5545;border-radius:50%;font:600 17px var(--display);color:var(--green); }
+.emblem-name { max-width:125px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#d4e2ce;font-size:7px;letter-spacing:.7px;text-align:center; }
+.emblem-divider { width:1px;height:50px;background:#ffffff29; }
+.card-data { display:block;position:relative;border-top:1px solid #ffffff24;padding-top:10px;min-width:0; }
+.card-data strong { display:block;width:100%;font:700 clamp(20px,2.5vw,29px)/1 var(--display);text-transform:uppercase;letter-spacing:.3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#f2f1e7; }
 .card-data>span { color:#bac8b7;font-size:10px;letter-spacing:1px; }
-.card-club,.card-nationality { display:flex;align-items:center;justify-content:space-between;gap:10px;color:#bac8b7;font-size:10px;letter-spacing:1px;min-height:22px; }
-.card-club img { width:27px;height:27px;object-fit:contain;filter:drop-shadow(0 2px 4px #0008); }
-.card-nationality { justify-content:flex-start;font-size:9px;letter-spacing:.8px;color:#d3dfcf; }
-.card-nationality img { width:22px;height:16px;object-fit:cover;border-radius:2px;box-shadow:0 1px 4px #0009; }
-.card-flag-emoji { font-size:16px;line-height:1; }
 .card-bottom { position:absolute;left:19px;right:19px;bottom:18px;align-items:end;color:#9eae9c; }
 .card-bottom b { font:700 19px "Oswald";color:var(--green); }
 .creation-success { max-width:700px;margin:13vh auto 0;position:relative; }
@@ -1364,3 +1367,11 @@ footer > span {
     transition-duration: 0.01ms !important;
   }
 }
+.player-card { height:420px; }
+.card-silhouette { height:165px; }
+.player-orb { width:116px;height:116px;font-size:55px; }
+.card-emblems { position:relative;display:flex;justify-content:center;align-items:center;gap:24px;min-height:88px;margin:0 0 12px; }
+.card-data { display:block;position:relative;border-top:1px solid #ffffff24;padding-top:10px;min-width:0; }
+.card-data small { display:none; }
+.card-data strong { display:block;width:100%;font:700 clamp(20px,2.5vw,29px)/1 var(--display);text-transform:uppercase;letter-spacing:.3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#f2f1e7; }
+.card-bottom { justify-content:flex-end; }
