@@ -9,6 +9,8 @@ export default function PlayerSetupScreen({ onClose }) {
   const [teams, setTeams] = useState([]);
   const [previewName, setPreviewName] = useState("");
   const [previewNumber, setPreviewNumber] = useState("");
+  const [playerImage, setPlayerImage] = useState("");
+  const [photoError, setPhotoError] = useState("");
   const [selectedTeamId, setSelectedTeamId] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -46,11 +48,31 @@ export default function PlayerSetupScreen({ onClose }) {
       name: form.get("name"), birthDate: form.get("birthDate"),
       number: Number(form.get("number")), nationality: form.get("nationality"),
       nationalityFlag: nationality?.flag || "",
+      image: playerImage,
       league: leagues.find((league) => String(league.id) === leagueId), team,
       createdAt: new Date().toISOString(),
     };
     localStorage.setItem("dreamchaser.player", JSON.stringify(profile));
     setSaved(true);
+  }
+  function selectPlayerImage(event) {
+    const file = event.target.files?.[0];
+    setPhotoError("");
+    if (!file) return;
+    if (file.type !== "image/png") {
+      setPhotoError("Elegí una imagen en formato PNG.");
+      event.target.value = "";
+      return;
+    }
+    if (file.size > 1024 * 1024) {
+      setPhotoError("La imagen debe pesar menos de 1 MB.");
+      event.target.value = "";
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => setPlayerImage(String(reader.result || ""));
+    reader.onerror = () => setPhotoError("No pudimos leer la imagen. Probá con otro archivo PNG.");
+    reader.readAsDataURL(file);
   }
   const chosenTeam = teams.find((item) => String(item.id) === selectedTeamId);
   const chosenNationality = nationalities.find((item) => item.name === selectedNationality);
@@ -65,9 +87,12 @@ export default function PlayerSetupScreen({ onClose }) {
         <label>Selección nacional<select name="nationality" required value={selectedNationality} onChange={(event) => setSelectedNationality(event.target.value)}><option value="">Elegí tu selección</option>{nationalities.map((item) => <option key={item.code} value={item.name}>{item.name}</option>)}</select></label>
         <div className="form-section-title club-title"><span>02</span> TU PRIMER CLUB</div>
         <div className="setup-row"><label>Liga<select value={leagueId} onChange={(e) => { setLeagueId(e.target.value); setSelectedTeamId(""); }} required><option value="">Elegí una liga</option>{leagues.map((league) => <option key={league.id} value={league.id}>{league.name} · {league.country}</option>)}</select></label><label>Equipo<select name="teamId" value={selectedTeamId} onChange={(e) => setSelectedTeamId(e.target.value)} required disabled={!leagueId || loading || !teams.length}><option value="">{loading ? "Cargando…" : "Elegí tu equipo"}</option>{teams.map((team) => <option key={team.id} value={team.id}>{team.name}</option>)}</select></label></div>
+        <div className="form-section-title photo-title"><span>03</span> TU FOTO DE JUGADOR</div>
+        <label className="photo-upload">Imagen PNG (opcional)<input type="file" accept="image/png,.png" onChange={selectPlayerImage} /><small>PNG de hasta 1 MB. Se mostrará en tu Player Card.</small></label>
+        {photoError && <div className="setup-error" role="alert">{photoError}</div>}
         {error && <div className="setup-error" role="alert">{error}</div>}
         <button className="cta form-cta" type="submit" disabled={loading || !teams.length || !nationalities.length}>Empezar mi carrera <b>↗</b></button><div className="fineprint">UNA CARRERA. INFINITAS HISTORIAS.</div>
-      </form><aside className="player-card"><div className="card-top"><span>PLAYER CARD</span><span>DC · 01</span></div><div className="card-silhouette"><span className="silhouette-number">{previewNumber || "10"}</span><div className="player-orb">✳</div></div><div className="card-emblems"><div className="card-emblem"><span className="emblem-label">SELECCIÓN</span>{nationalityFlagIsUrl ? <img className="national-flag" src={chosenNationality.flag} alt={`Bandera de ${selectedNationality}`} /> : chosenNationality?.flag ? <span className="national-flag-emoji">{chosenNationality.flag}</span> : <span className="emblem-placeholder">—</span>}<span className="emblem-name">{selectedNationality || "PAÍS"}</span></div><div className="emblem-divider"/><div className="card-emblem"><span className="emblem-label">CLUB</span>{chosenTeam?.crest ? <img className="team-crest" src={chosenTeam.crest} alt={`Escudo de ${chosenTeam.name}`} /> : <span className="emblem-placeholder">DC</span>}<span className="emblem-name">{chosenTeam?.name || "EQUIPO"}</span></div></div><div className="card-data"><strong>{previewName || "TU NOMBRE"}</strong></div><div className="card-bottom"><b>DC</b></div></aside></div>
+      </form><aside className="player-card"><div className="card-top"><span>PLAYER CARD</span><span>DC · 01</span></div><div className="card-silhouette"><span className="silhouette-number">{previewNumber || "10"}</span><div className="player-orb">{playerImage ? <img className="player-photo" src={playerImage} alt={previewName ? `Foto de ${previewName}` : "Foto del jugador"} /> : "✳"}</div></div><div className="card-emblems"><div className="card-emblem"><span className="emblem-label">SELECCIÓN</span>{nationalityFlagIsUrl ? <img className="national-flag" src={chosenNationality.flag} alt={`Bandera de ${selectedNationality}`} /> : chosenNationality?.flag ? <span className="national-flag-emoji">{chosenNationality.flag}</span> : <span className="emblem-placeholder">—</span>}<span className="emblem-name">{selectedNationality || "PAÍS"}</span></div><div className="emblem-divider"/><div className="card-emblem"><span className="emblem-label">CLUB</span>{chosenTeam?.crest ? <img className="team-crest" src={chosenTeam.crest} alt={`Escudo de ${chosenTeam.name}`} /> : <span className="emblem-placeholder">DC</span>}<span className="emblem-name">{chosenTeam?.name || "EQUIPO"}</span></div></div><div className="card-data"><strong>{previewName || "TU NOMBRE"}</strong></div><div className="card-bottom"><b>DC</b></div></aside></div>
     </>}
   </div>;
 }
