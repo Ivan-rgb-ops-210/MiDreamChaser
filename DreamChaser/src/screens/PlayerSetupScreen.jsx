@@ -1,6 +1,16 @@
 import { useEffect, useState } from "react";
 import { Mark, Stadium } from "../components/Brand.jsx";
 
+const STAT_DEFINITIONS = [
+  { key: "pace", label: "Ritmo", initial: 60 },
+  { key: "shooting", label: "Tiro", initial: 60 },
+  { key: "passing", label: "Pase", initial: 60 },
+  { key: "dribbling", label: "Regate", initial: 60 },
+  { key: "defense", label: "Defensa", initial: 30 },
+  { key: "physical", label: "Físico", initial: 60 },
+];
+const BONUS_POINTS = 20;
+
 export default function PlayerSetupScreen({ onClose }) {
   const [leagueId, setLeagueId] = useState("");
   const [leagues, setLeagues] = useState([]);
@@ -15,6 +25,9 @@ export default function PlayerSetupScreen({ onClose }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [saved, setSaved] = useState(false);
+  const [stats, setStats] = useState(() => Object.fromEntries(STAT_DEFINITIONS.map(({ key, initial }) => [key, initial])));
+  const spentPoints = STAT_DEFINITIONS.reduce((total, stat) => total + stats[stat.key] - stat.initial, 0);
+  const remainingPoints = BONUS_POINTS - spentPoints;
   useEffect(() => {
     Promise.all([fetch("/api/football/leagues").then((r) => r.json()), fetch("/api/football/nationalities").then((r) => r.json())])
       .then(([leagueData, nationalityData]) => {
@@ -41,13 +54,15 @@ export default function PlayerSetupScreen({ onClose }) {
   }, [leagueId]);
   function savePlayer(event) {
     event.preventDefault();
+    if (remainingPoints !== 0) return;
     const form = new FormData(event.currentTarget);
     const team = teams.find((item) => String(item.id) === form.get("teamId"));
     const nationality = nationalities.find((item) => item.name === form.get("nationality"));
     const profile = {
-      name: form.get("name"), birthDate: form.get("birthDate"),
+      name: form.get("name"),
       number: Number(form.get("number")), nationality: form.get("nationality"),
       nationalityFlag: nationality?.flag || "",
+      stats,
       image: playerImage,
       league: leagues.find((league) => String(league.id) === leagueId), team,
       createdAt: new Date().toISOString(),
@@ -83,16 +98,27 @@ export default function PlayerSetupScreen({ onClose }) {
       <div className="creation-layout"><form className="creation-form" onSubmit={savePlayer}>
         <div className="form-section-title"><span>01</span> IDENTIDAD DEL JUGADOR</div>
         <label>Nombre y apellido<input name="name" placeholder="Ej. Mateo González" autoComplete="name" required maxLength="40" onChange={(e) => setPreviewName(e.target.value)} /></label>
-        <div className="setup-row"><label>Fecha de nacimiento<input name="birthDate" type="date" required max={new Date().toISOString().slice(0, 10)} /></label><label>Dorsal<input name="number" type="number" min="1" max="99" placeholder="10" required onChange={(e) => setPreviewNumber(e.target.value)} /></label></div>
+        <label>Dorsal<input name="number" type="number" min="1" max="99" placeholder="10" required onChange={(e) => setPreviewNumber(e.target.value)} /></label>
         <label>Selección nacional<select name="nationality" required value={selectedNationality} onChange={(event) => setSelectedNationality(event.target.value)}><option value="">Elegí tu selección</option>{nationalities.map((item) => <option key={item.code} value={item.name}>{item.name}</option>)}</select></label>
         <div className="form-section-title club-title"><span>02</span> TU PRIMER CLUB</div>
         <div className="setup-row"><label>Liga<select value={leagueId} onChange={(e) => { setLeagueId(e.target.value); setSelectedTeamId(""); }} required><option value="">Elegí una liga</option>{leagues.map((league) => <option key={league.id} value={league.id}>{league.name} · {league.country}</option>)}</select></label><label>Equipo<select name="teamId" value={selectedTeamId} onChange={(e) => setSelectedTeamId(e.target.value)} required disabled={!leagueId || loading || !teams.length}><option value="">{loading ? "Cargando…" : "Elegí tu equipo"}</option>{teams.map((team) => <option key={team.id} value={team.id}>{team.name}</option>)}</select></label></div>
         <div className="form-section-title photo-title"><span>03</span> TU FOTO DE JUGADOR</div>
         <label className="photo-upload">Imagen PNG (opcional)<input type="file" accept="image/png,.png" onChange={selectPlayerImage} /><small>PNG de hasta 1 MB. Se mostrará en tu Player Card.</small></label>
+        <div className="form-section-title stats-title"><span>04</span> PERSONALIZÁ TUS ESTADÍSTICAS</div>
+        <div className="stats-budget"><div><strong>Puntos iniciales disponibles</strong><small>Distribuí tus puntos entre las seis estadísticas como prefieras.</small></div><span className={remainingPoints === 0 ? "is-complete" : ""}>{remainingPoints}/{BONUS_POINTS} libres</span></div>
+        <div className="stats-grid">{STAT_DEFINITIONS.map((stat) => <label className="stat-control" key={stat.key}>
+          <span className="stat-heading">{stat.label}</span>
+          <span className="stat-stepper">
+            <button type="button" aria-label={`Restar un punto de ${stat.label}`} disabled={stats[stat.key] <= stat.initial} onClick={() => setStats((current) => ({ ...current, [stat.key]: current[stat.key] - 1 }))}>−</button>
+            <b aria-live="polite">{stats[stat.key]}</b>
+            <button type="button" aria-label={`Sumar un punto a ${stat.label}`} disabled={remainingPoints === 0 || stats[stat.key] >= 100} onClick={() => setStats((current) => ({ ...current, [stat.key]: current[stat.key] + 1 }))}>+</button>
+          </span>
+        </label>)}</div>
+        {remainingPoints !== 0 && <p className="stats-hint" role="status">{remainingPoints > 0 ? `Te quedan ${remainingPoints} puntos por repartir.` : "Repartiste más puntos de los disponibles."}</p>}
         {photoError && <div className="setup-error" role="alert">{photoError}</div>}
         {error && <div className="setup-error" role="alert">{error}</div>}
-        <button className="cta form-cta" type="submit" disabled={loading || !teams.length || !nationalities.length}>Empezar mi carrera <b>↗</b></button><div className="fineprint">UNA CARRERA. INFINITAS HISTORIAS.</div>
-      </form><aside className="player-card"><div className="card-top"><span>PLAYER CARD</span><span>DC · 01</span></div><div className="card-silhouette"><span className="silhouette-number">{previewNumber || "10"}</span><div className="player-orb">{playerImage ? <img className="player-photo" src={playerImage} alt={previewName ? `Foto de ${previewName}` : "Foto del jugador"} /> : "✳"}</div></div><div className="card-emblems"><div className="card-emblem"><span className="emblem-label">SELECCIÓN</span>{nationalityFlagIsUrl ? <img className="national-flag" src={chosenNationality.flag} alt={`Bandera de ${selectedNationality}`} /> : chosenNationality?.flag ? <span className="national-flag-emoji">{chosenNationality.flag}</span> : <span className="emblem-placeholder">—</span>}<span className="emblem-name">{selectedNationality || "PAÍS"}</span></div><div className="emblem-divider"/><div className="card-emblem"><span className="emblem-label">CLUB</span>{chosenTeam?.crest ? <img className="team-crest" src={chosenTeam.crest} alt={`Escudo de ${chosenTeam.name}`} /> : <span className="emblem-placeholder">DC</span>}<span className="emblem-name">{chosenTeam?.name || "EQUIPO"}</span></div></div><div className="card-data"><strong>{previewName || "TU NOMBRE"}</strong></div><div className="card-bottom"><b>DC</b></div></aside></div>
+        <button className="cta form-cta" type="submit" disabled={loading || !teams.length || !nationalities.length || remainingPoints !== 0}>Empezar mi carrera <b>↗</b></button><div className="fineprint">UNA CARRERA. INFINITAS HISTORIAS.</div>
+      </form><aside className="player-card"><div className="card-top"><span>PLAYER CARD</span><span>DC · 01</span></div><div className="card-silhouette"><span className="silhouette-number">{previewNumber || "10"}</span><div className="player-orb">{playerImage ? <img className="player-photo" src={playerImage} alt={previewName ? `Foto de ${previewName}` : "Foto del jugador"} /> : "✳"}</div></div><div className="card-emblems"><div className="card-emblem"><span className="emblem-label">SELECCIÓN</span>{nationalityFlagIsUrl ? <img className="national-flag" src={chosenNationality.flag} alt={`Bandera de ${selectedNationality}`} /> : chosenNationality?.flag ? <span className="national-flag-emoji">{chosenNationality.flag}</span> : <span className="emblem-placeholder">—</span>}<span className="emblem-name">{selectedNationality || "PAÍS"}</span></div><div className="emblem-divider"/><div className="card-emblem"><span className="emblem-label">CLUB</span>{chosenTeam?.crest ? <img className="team-crest" src={chosenTeam.crest} alt={`Escudo de ${chosenTeam.name}`} /> : <span className="emblem-placeholder">DC</span>}<span className="emblem-name">{chosenTeam?.name || "EQUIPO"}</span></div></div><div className="card-data"><strong>{previewName || "TU NOMBRE"}</strong><div className="card-stats" aria-label="Estadísticas del jugador">{STAT_DEFINITIONS.map((stat) => <div key={stat.key}><span>{stat.label}</span><b>{stats[stat.key]}</b></div>)}</div></div><div className="card-bottom"><b>DC</b></div></aside></div>
     </>}
   </div>;
 }
