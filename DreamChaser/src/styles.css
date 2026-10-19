@@ -1524,3 +1524,35 @@ footer > span {
   .card-stats span { font-size:9px; }
   .card-stats b { font-size:17px; }
 }
+
+/* A little life for the live player preview. */
+.player-card {
+  translate: 0 0;
+  animation: player-card-float 3s ease-in-out infinite;
+  will-change: translate;
+}
+.player-card::after {
+  content: "";
+  position: absolute;
+  inset: -45% -70%;
+  pointer-events: none;
+  background: linear-gradient(110deg, transparent 43%, #d8ffb51c 50%, transparent 57%);
+  transform: translateX(-65%) rotate(8deg);
+  animation: player-card-shine 7s ease-in-out infinite;
+}
+.player-orb {
+  animation: player-orb-glow 3.6s ease-in-out infinite;
+}
+@keyframes player-card-float {
+  0%, 100% { translate: 0 0; }
+  50% { translate: 0 -8px; }
+}
+@keyframes player-card-shine {
+  0%, 35% { transform: translateX(-65%) rotate(8deg); opacity: 0; }
+  48% { opacity: 1; }
+  68%, 100% { transform: translateX(65%) rotate(8deg); opacity: 0; }
+}
+@keyframes player-orb-glow {
+  0%, 100% { box-shadow: 0 0 36px #a4ee5510; }
+  50% { box-shadow: 0 0 62px #a4ee5528; }
+}
