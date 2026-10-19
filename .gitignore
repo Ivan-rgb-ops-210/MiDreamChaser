@@ -1,0 +1,13 @@
+# Local secrets and environment files
+.env
+.env.*
+!.env.example
+
+# Generated frontend output and installed dependencies
+**/dist/
+**/node_modules/
+**/.vite/
+
+# Local editor / OS files
+.DS_Store
+Thumbs.db
