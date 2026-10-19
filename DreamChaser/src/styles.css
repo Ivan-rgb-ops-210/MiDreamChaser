@@ -1378,6 +1378,17 @@ footer > span {
 .creation-form .photo-upload small { color:#778274; font-size:9px; font-weight:400; letter-spacing:0; }
 .player-orb { position:relative; overflow:hidden; }
 .player-orb .player-photo { display:block; width:100%; height:100%; border-radius:50%; object-fit:cover; }
+
+/* Give the player preview more room on desktop without crowding the form. */
+.creation-layout { grid-template-columns:minmax(380px,560px) minmax(300px,390px); gap:clamp(32px,6vw,100px); }
+.player-card { height:470px; max-width:390px; padding:23px; }
+.card-silhouette { height:185px; }
+.player-orb { width:145px; height:145px; font-size:66px; }
+.card-emblems { min-height:100px; gap:30px; margin-bottom:15px; }
+.team-crest,.national-flag-emoji,.emblem-placeholder { width:54px; height:54px; }
+.national-flag { width:58px; height:40px; }
+.emblem-name { max-width:145px; font-size:8px; }
+.card-data strong { font-size:clamp(24px,2.7vw,32px); }
 .card-emblems { position:relative;display:flex;justify-content:center;align-items:center;gap:24px;min-height:88px;margin:0 0 12px; }
 .card-data { display:block;position:relative;border-top:1px solid #ffffff24;padding-top:10px;min-width:0; }
 .card-data small { display:none; }
