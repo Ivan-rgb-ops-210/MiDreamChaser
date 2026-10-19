@@ -35,7 +35,8 @@ function json(data, status = 200) {
   });
 }
 
-export default async function handler(request) {
+export default {
+  async fetch(request) {
   if (request.method !== "GET") return json({ error: "Método no permitido." }, 405);
 
   const apiKey = process.env.FOOTBALL_DATA_ORG_API_KEY || process.env.FOOTBALL_DATA_IO_API_KEY;
@@ -157,4 +158,5 @@ export default async function handler(request) {
   } catch (error) {
     return json({ error: error.message, endpoint: error.endpoint }, error.status || 502);
   }
-}
+  },
+};
