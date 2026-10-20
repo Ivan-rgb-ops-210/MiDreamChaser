@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import AuthScreen from "./screens/AuthScreen.jsx";
 import HomeScreen from "./screens/HomeScreen.jsx";
 import PlayerSetupScreen from "./screens/PlayerSetupScreen.jsx";
+import CareerHomeScreen from "./screens/CareerHomeScreen.jsx";
 
 export default function App() {
   const [authMode, setAuthMode] = useState(null);
@@ -23,7 +24,15 @@ export default function App() {
   }
 
   if (pathname === "/playersetup") {
-    return <PlayerSetupScreen onClose={() => navigate("/", { replace: true })} />;
+    return <PlayerSetupScreen onClose={() => navigate("/", { replace: true })} onComplete={() => navigate("/career")} />;
+  }
+  if (pathname === "/career") {
+    const profile = JSON.parse(localStorage.getItem("dreamchaser.player") || "null");
+    if (!profile) {
+      window.history.replaceState({}, "", "/playersetup");
+      return <PlayerSetupScreen onClose={() => navigate("/", { replace: true })} onComplete={() => navigate("/career")} />;
+    }
+    return <CareerHomeScreen profile={profile} onExit={() => navigate("/")} />;
   }
 
   return (

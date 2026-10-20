@@ -11,7 +11,7 @@ const STAT_DEFINITIONS = [
 ];
 const BONUS_POINTS = 20;
 
-export default function PlayerSetupScreen({ onClose }) {
+export default function PlayerSetupScreen({ onClose, onComplete }) {
   const [leagueId, setLeagueId] = useState("");
   const [leagues, setLeagues] = useState([]);
   const [nationalities, setNationalities] = useState([]);
@@ -25,7 +25,6 @@ export default function PlayerSetupScreen({ onClose }) {
   const [selectedTeamId, setSelectedTeamId] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [saved, setSaved] = useState(false);
   const [stats, setStats] = useState(() => Object.fromEntries(STAT_DEFINITIONS.map(({ key, initial }) => [key, initial])));
   const spentPoints = STAT_DEFINITIONS.reduce((total, stat) => total + stats[stat.key] - stat.initial, 0);
   const remainingPoints = BONUS_POINTS - spentPoints;
@@ -68,7 +67,7 @@ export default function PlayerSetupScreen({ onClose }) {
       createdAt: new Date().toISOString(),
     };
     localStorage.setItem("dreamchaser.player", JSON.stringify(profile));
-    setSaved(true);
+    onComplete();
   }
   function continueSetup(event) {
     event.preventDefault();
@@ -98,7 +97,7 @@ export default function PlayerSetupScreen({ onClose }) {
   const nationalityFlagIsUrl = /^https?:\/\//i.test(chosenNationality?.flag || "");
   return <main className="player-creation"><Stadium />
     <header className="creation-nav"><Mark /><button onClick={onClose} aria-label="Volver al inicio">×</button></header>
-    {saved ? <section className="creation-success"><div className="success-number">{JSON.parse(localStorage.getItem("dreamchaser.player") || "{}").number}</div><div className="auth-kicker"><span /> FICHA DE JUGADOR COMPLETA</div><h1 id="setup-title">La cancha<br /><i>es tuya.</i></h1><p>Tu historia ya tiene protagonista. Ahora empieza la carrera.</p><button className="cta" onClick={onClose}>Entrar a mi carrera <b>↗</b></button></section> : <>
+    <>
       <div className="creation-layout"><form className="creation-form" onSubmit={savePlayer}>
         <div className="setup-progress" aria-label={`Paso ${step} de 2`}><span className={step === 1 ? "is-active" : "is-complete"}>1</span><i /><span className={step === 2 ? "is-active" : ""}>2</span><small>{step === 1 ? "IDENTIDAD Y CLUB" : "FOTO Y ESTADÍSTICAS"}</small></div>
         {step === 1 && <>
@@ -129,7 +128,7 @@ export default function PlayerSetupScreen({ onClose }) {
         <div className="setup-actions"><button className="setup-back" type="button" onClick={() => setStep(1)}>← Volver</button><button className="cta form-cta" type="submit" disabled={loading || !teams.length || !nationalities.length || remainingPoints !== 0}>Empezar mi carrera <b>↗</b></button></div><div className="fineprint">UNA CARRERA. INFINITAS HISTORIAS.</div>
         </>}
       </form><aside className="player-card"><div className="card-top"><span>Dante, si laburas vas a borrar esto, ANTIPALA</span><span>DC · 01</span></div><div className="card-silhouette"><span className="silhouette-number">{previewNumber || "10"}</span><div className="player-orb">{playerImage ? <img className="player-photo" src={playerImage} alt={previewName ? `Foto de ${previewName}` : "Foto del jugador"} /> : "✳"}</div></div><div className="card-emblems"><div className="card-emblem"><span className="emblem-label">SELECCIÓN</span>{nationalityFlagIsUrl ? <img className="national-flag" src={chosenNationality.flag} alt={`Bandera de ${selectedNationality}`} /> : chosenNationality?.flag ? <span className="national-flag-emoji">{chosenNationality.flag}</span> : <span className="emblem-placeholder">—</span>}<span className="emblem-name">{selectedNationality || "PAÍS"}</span></div><div className="emblem-divider"/><div className="card-emblem"><span className="emblem-label">CLUB</span>{chosenTeam?.crest ? <img className="team-crest" src={chosenTeam.crest} alt={`Escudo de ${chosenTeam.name}`} /> : <span className="emblem-placeholder">DC</span>}<span className="emblem-name">{chosenTeam?.name || "EQUIPO"}</span></div></div><div className="card-data"><strong>{previewName || "TU NOMBRE"}</strong><div className="card-stats" aria-label="Estadísticas del jugador">{STAT_DEFINITIONS.map((stat) => <div key={stat.key}><span>{stat.label}</span><b>{stats[stat.key]}</b></div>)}</div></div><div className="card-bottom"><b>DC</b></div></aside></div>
-    </>}
+    </>
   </main>;
 }
 
