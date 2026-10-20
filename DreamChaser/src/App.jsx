@@ -1,11 +1,30 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import AuthScreen from "./screens/AuthScreen.jsx";
 import HomeScreen from "./screens/HomeScreen.jsx";
 import PlayerSetupScreen from "./screens/PlayerSetupScreen.jsx";
 
 export default function App() {
   const [authMode, setAuthMode] = useState(null);
-  const [settingUpPlayer, setSettingUpPlayer] = useState(false);
+  const [pathname, setPathname] = useState(window.location.pathname);
+
+  useEffect(() => {
+    const syncPath = () => setPathname(window.location.pathname);
+    window.addEventListener("popstate", syncPath);
+    return () => window.removeEventListener("popstate", syncPath);
+  }, []);
+
+  function navigate(path, { replace = false } = {}) {
+    if (window.location.pathname !== path) {
+      const method = replace ? "replaceState" : "pushState";
+      window.history[method]({}, "", path);
+    }
+    setPathname(path);
+    setAuthMode(null);
+  }
+
+  if (pathname === "/playersetup") {
+    return <PlayerSetupScreen onClose={() => navigate("/", { replace: true })} />;
+  }
 
   return (
     <>
@@ -14,9 +33,8 @@ export default function App() {
         mode={authMode}
         onClose={() => setAuthMode(null)}
         onMode={setAuthMode}
-        onCreated={() => { setAuthMode(null); setSettingUpPlayer(true); }}
+        onCreated={() => navigate("/playersetup")}
       />
-      {settingUpPlayer && <PlayerSetupScreen onClose={() => setSettingUpPlayer(false)} />}
     </>
   );
 }
