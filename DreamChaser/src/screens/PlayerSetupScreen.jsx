@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Mark, Stadium } from "../components/Brand.jsx";
+import { savePlayerProfile } from "../lib/playerProfiles.js";
 
 const STAT_DEFINITIONS = [
   { key: "pace", label: "Ritmo", initial: 60 },
@@ -11,7 +12,7 @@ const STAT_DEFINITIONS = [
 ];
 const BONUS_POINTS = 20;
 
-export default function PlayerSetupScreen({ onClose, onComplete }) {
+export default function PlayerSetupScreen({ user, onClose, onComplete }) {
   const [leagueId, setLeagueId] = useState("");
   const [leagues, setLeagues] = useState([]);
   const [nationalities, setNationalities] = useState([]);
@@ -26,6 +27,7 @@ export default function PlayerSetupScreen({ onClose, onComplete }) {
   const [loading, setLoading] = useState(false);
   const [nationalityLoading, setNationalityLoading] = useState(true);
   const [error, setError] = useState("");
+  const [saving, setSaving] = useState(false);
   const [stats, setStats] = useState(() => Object.fromEntries(STAT_DEFINITIONS.map(({ key, initial }) => [key, initial])));
   const spentPoints = STAT_DEFINITIONS.reduce((total, stat) => total + stats[stat.key] - stat.initial, 0);
   const remainingPoints = BONUS_POINTS - spentPoints;
@@ -64,9 +66,9 @@ export default function PlayerSetupScreen({ onClose, onComplete }) {
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
   }, [leagueId]);
-  function savePlayer(event) {
+  async function savePlayer(event) {
     event.preventDefault();
-    if (remainingPoints !== 0) return;
+    if (remainingPoints !== 0 || saving) return;
     const team = teams.find((item) => String(item.id) === selectedTeamId);
     const nationality = nationalities.find((item) => item.name === selectedNationality);
     const profile = {
@@ -78,8 +80,20 @@ export default function PlayerSetupScreen({ onClose, onComplete }) {
       league: leagues.find((league) => String(league.id) === leagueId), team,
       createdAt: new Date().toISOString(),
     };
-    localStorage.setItem("dreamchaser.player", JSON.stringify(profile));
-    onComplete();
+    if (!user?.id) {
+      setError("Iniciá sesión para guardar tu jugador.");
+      return;
+    }
+    setSaving(true);
+    setError("");
+    try {
+      await savePlayerProfile(user.id, profile);
+      onComplete(profile);
+    } catch (reason) {
+      setError(reason.message || "No pudimos guardar tu jugador. Revisá tu conexión e intentá de nuevo.");
+    } finally {
+      setSaving(false);
+    }
   }
   function continueSetup(event) {
     event.preventDefault();
@@ -138,7 +152,7 @@ export default function PlayerSetupScreen({ onClose, onComplete }) {
         {remainingPoints !== 0 && <p className="stats-hint" role="status">{remainingPoints > 0 ? `Te quedan ${remainingPoints} puntos por repartir.` : "Repartiste más puntos de los disponibles."}</p>}
         {photoError && <div className="setup-error" role="alert">{photoError}</div>}
         {error && <div className="setup-error" role="alert">{error}</div>}
-        <div className="setup-actions"><button className="setup-back" type="button" onClick={() => setStep(1)}>← Volver</button><button className="cta form-cta" type="submit" disabled={loading || nationalityLoading || !teams.length || !nationalities.length || remainingPoints !== 0}>Empezar mi carrera <b>↗</b></button></div><div className="fineprint">UNA CARRERA. INFINITAS HISTORIAS.</div>
+        <div className="setup-actions"><button className="setup-back" type="button" onClick={() => setStep(1)}>← Volver</button><button className="cta form-cta" type="submit" disabled={saving || loading || nationalityLoading || !teams.length || !nationalities.length || remainingPoints !== 0}>{saving ? "Guardando…" : "Empezar mi carrera"} <b>↗</b></button></div><div className="fineprint">UNA CARRERA. INFINITAS HISTORIAS.</div>
         </>}
       </form><aside className="player-card"><div className="card-top"><span>PLAYER CARD</span><span>DC · 01</span></div><div className="card-silhouette"><span className="silhouette-number">{previewNumber || "10"}</span><div className="player-orb">{playerImage ? <img className="player-photo" src={playerImage} alt={previewName ? `Foto de ${previewName}` : "Foto del jugador"} /> : "✳"}</div></div><div className="card-emblems"><div className="card-emblem"><span className="emblem-label">SELECCIÓN</span>{nationalityFlagIsUrl ? <img className="national-flag" src={chosenNationality.flag} alt={`Bandera de ${selectedNationality}`} /> : chosenNationality?.flag ? <span className="national-flag-emoji">{chosenNationality.flag}</span> : <span className="emblem-placeholder">—</span>}<span className="emblem-name">{selectedNationality || "PAÍS"}</span></div><div className="emblem-divider"/><div className="card-emblem"><span className="emblem-label">CLUB</span>{chosenTeam?.crest ? <img className="team-crest" src={chosenTeam.crest} alt={`Escudo de ${chosenTeam.name}`} /> : <span className="emblem-placeholder">DC</span>}<span className="emblem-name">{chosenTeam?.name || "EQUIPO"}</span></div></div><div className="card-data"><strong>{previewName || "TU NOMBRE"}</strong><div className="card-stats" aria-label="Estadísticas del jugador">{STAT_DEFINITIONS.map((stat) => <div key={stat.key}><span>{stat.label}</span><b>{stats[stat.key]}</b></div>)}</div></div><div className="card-bottom"><b>DC</b></div></aside></div>
     </>

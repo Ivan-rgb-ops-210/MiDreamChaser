@@ -42,11 +42,11 @@ export default function CareerHomeScreen({ profile, onExit }) {
           <article className="career-table-panel"><div className="panel-kicker"><span>02</span> TABLA DE {leagueName.toUpperCase()} <b>JORNADA 01</b></div><div className="table-head"><span>#</span><span>CLUB</span><span>PTS</span></div><div className="table-empty"><span>—</span><p>La temporada todavía no empezó.<small>La tabla se completa cuando arranque el torneo.</small></p></div><div className="table-foot"><span>0 PARTIDOS JUGADOS</span><span>CLASIFICACIÓN</span></div></article>
         </div>
       </div>
-      <footer className="career-footer"><span>UNA CARRERA. INFINITAS HISTORIAS.</span><span>GUARDADO LOCALMENTE <i>●</i></span></footer>
+      <footer className="career-footer"><span>UNA CARRERA. INFINITAS HISTORIAS.</span><span>GUARDADO EN LA NUBE <i>●</i></span></footer>
     </section> : <section className="career-home-content career-section-view">
       <div className="career-heading"><div><span className="career-eyebrow">MODO CARRERA <i>·</i> {clubName.toUpperCase()}</span><h1>{PLACEHOLDERS[section]?.[0] || "TU CARRERA"}</h1><p>{PLACEHOLDERS[section]?.[1]}</p></div></div>
       <article className="career-coming-card"><span className="coming-mark">DC</span><div className="career-eyebrow">PRÓXIMAMENTE EN DREAMCHASER</div><h2>{PLACEHOLDERS[section]?.[1]}</h2><button className="career-back-home" onClick={() => setSection("home")}>← Volver al inicio</button></article>
-      <footer className="career-footer"><span>UNA CARRERA. INFINITAS HISTORIAS.</span><span>GUARDADO LOCALMENTE <i>●</i></span></footer>
+      <footer className="career-footer"><span>UNA CARRERA. INFINITAS HISTORIAS.</span><span>GUARDADO EN LA NUBE <i>●</i></span></footer>
     </section>}
   </main>;
 }

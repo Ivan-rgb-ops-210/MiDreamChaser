@@ -1,4 +1,4 @@
-export default function AuthScreen({ mode, onClose, onMode, onCreated }) {
+export default function AuthScreen({ mode, onClose, onMode, onSubmit, busy, error, notice }) {
   if (!mode) return null;
   const signup = mode === "signup";
   return (
@@ -28,34 +28,52 @@ export default function AuthScreen({ mode, onClose, onMode, onCreated }) {
             ? "El primer paso hacia una carrera legendaria."
             : "Tu próxima convocatoria te espera."}
         </p>
-        <form onSubmit={(e) => { e.preventDefault(); if (signup) onCreated(); else onClose(); }}>
+        <form onSubmit={(event) => {
+          event.preventDefault();
+          const form = new FormData(event.currentTarget);
+          onSubmit({
+            username: String(form.get("username") || "").trim(),
+            email: String(form.get("email") || "").trim(),
+            password: String(form.get("password") || ""),
+          });
+        }}>
           {signup && (
             <label>
               Nombre de usuario
               <input
+                name="username"
                 placeholder="El nombre en tu camiseta"
                 autoComplete="nickname"
+                required
+                maxLength="40"
               />
             </label>
           )}
           <label>
             Email
             <input
+              name="email"
               type="email"
               placeholder="jugador@ejemplo.com"
               autoComplete="email"
+              required
             />
           </label>
           <label>
             Contraseña
             <input
+              name="password"
               type="password"
               placeholder="Mínimo 8 caracteres"
               autoComplete={signup ? "new-password" : "current-password"}
+              minLength="8"
+              required
             />
           </label>
-          <button className="cta form-cta" type="submit">
-            {signup ? "Crear mi carrera" : "Iniciar sesión"} <b>↗</b>
+          {error && <div className="auth-message auth-error" role="alert">{error}</div>}
+          {notice && <div className="auth-message" role="status">{notice}</div>}
+          <button className="cta form-cta" type="submit" disabled={busy}>
+            {busy ? "Conectando…" : signup ? "Crear mi carrera" : "Iniciar sesión"} <b>↗</b>
           </button>
         </form>
         <div className="switch">
