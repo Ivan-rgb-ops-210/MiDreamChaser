@@ -1542,6 +1542,12 @@ footer > span {
     transition-duration: 0.01ms !important;
   }
 }
+/* The live Player Card is an intentional part of the setup preview. */
+@media (prefers-reduced-motion: reduce) {
+  .player-card { animation-duration: 3s !important; animation-iteration-count: infinite !important; }
+  .player-card::after { animation-duration: 7s !important; animation-iteration-count: infinite !important; }
+  .player-orb { animation-duration: 3.6s !important; animation-iteration-count: infinite !important; }
+}
 .player-card { height:420px; }
 .card-silhouette { height:165px; }
 .player-orb { width:116px;height:116px;font-size:55px; }
@@ -1671,9 +1677,8 @@ footer > span {
 
 /* A little life for the live player preview. */
 .player-card {
-  translate: 0 0;
   animation: player-card-float 3s ease-in-out infinite;
-  will-change: translate;
+  will-change: transform;
 }
 .player-card::after {
   content: "";
@@ -1688,8 +1693,8 @@ footer > span {
   animation: player-orb-glow 3.6s ease-in-out infinite;
 }
 @keyframes player-card-float {
-  0%, 100% { translate: 0 0; }
-  50% { translate: 0 -8px; }
+  0%, 100% { transform: translateY(0) rotate(2deg); }
+  50% { transform: translateY(-12px) rotate(2deg); }
 }
 @keyframes player-card-shine {
   0%, 35% { transform: translateX(-65%) rotate(8deg); opacity: 0; }

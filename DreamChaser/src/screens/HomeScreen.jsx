@@ -168,7 +168,6 @@ export default function HomeScreen({ onLogin, onSignup }) {
             <div className="news-chip">
               <span className="news-pulse" /> RUMOR DE MERCADO{" "}
               <b>“¿Nuevo destino?”</b>
-              <small>— DANTE ROMANO</small>
             </div>
           </article>
         </div>
@@ -187,7 +186,8 @@ export default function HomeScreen({ onLogin, onSignup }) {
         <Mark />
         <span>UNA CARRERA. INFINITAS HISTORIAS.</span>
         <span>© DREAMCHASER 2026</span>
-      </footer>
+      </footer>
+
     </main>
   );
 }

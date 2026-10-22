@@ -24,17 +24,16 @@ export default function PlayerSetupScreen({ onClose, onComplete }) {
   const [photoError, setPhotoError] = useState("");
   const [selectedTeamId, setSelectedTeamId] = useState("");
   const [loading, setLoading] = useState(false);
+  const [nationalityLoading, setNationalityLoading] = useState(false);
   const [error, setError] = useState("");
   const [stats, setStats] = useState(() => Object.fromEntries(STAT_DEFINITIONS.map(({ key, initial }) => [key, initial])));
   const spentPoints = STAT_DEFINITIONS.reduce((total, stat) => total + stats[stat.key] - stat.initial, 0);
   const remainingPoints = BONUS_POINTS - spentPoints;
   useEffect(() => {
-    Promise.all([fetch("/api/football/leagues").then((r) => r.json()), fetch("/api/football/nationalities").then((r) => r.json())])
-      .then(([leagueData, nationalityData]) => {
+    fetch("/api/football/leagues").then((r) => r.json())
+      .then((leagueData) => {
         setLeagues((leagueData.leagues || []).filter((item) => /la\s*liga|primera division|premier league/i.test(item.league_name || item.name || "")).map((item) => ({ ...item, id: item.league_id || item.id, name: item.league_name || item.name })));
-        setNationalities(nationalityData.nationalities || []);
-        if (leagueData.error || nationalityData.error) setError(leagueData.error || nationalityData.error);
-        else if (!(nationalityData.nationalities || []).length) setError("La API no devolvió selecciones disponibles para esta cuenta.");
+        if (leagueData.error) setError(leagueData.error);
       }).catch(() => setError("No pudimos conectar con los datos del fútbol. Intentá de nuevo."));
   }, []);
   useEffect(() => {
@@ -52,6 +51,39 @@ export default function PlayerSetupScreen({ onClose, onComplete }) {
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
   }, [leagueId]);
+  useEffect(() => {
+    setNationalities([]);
+    setSelectedNationality("");
+    if (!selectedTeamId) return;
+    let active = true;
+    const team = teams.find((item) => String(item.id) === String(selectedTeamId));
+    const league = leagues.find((item) => String(item.id) === String(leagueId));
+    const fallbackNationalities = [...new Set([team?.country, league?.country].filter(Boolean))]
+      .map((name) => ({ name, code: name, flag: "" }));
+    setNationalities(fallbackNationalities);
+    setNationalityLoading(true);
+    setError("");
+    fetch(`/api/football/nationalities?teamId=${selectedTeamId}`, { signal: AbortSignal.timeout(8000) })
+      .then(async (response) => {
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || "No pudimos cargar las nacionalidades del equipo.");
+        return data;
+      })
+      .then((data) => {
+        if (!active) return;
+        const available = data.nationalities?.length ? data.nationalities : fallbackNationalities;
+        setNationalities(available);
+        setSelectedNationality((current) => available.some((item) => item.name === current) ? current : "");
+        setError(available.length ? "" : "La API no devolvió nacionalidades ni el país de este equipo.");
+      })
+      .catch((reason) => {
+        if (!active) return;
+        setNationalities(fallbackNationalities);
+        setError(fallbackNationalities.length ? "" : reason.message);
+      })
+      .finally(() => { if (active) setNationalityLoading(false); });
+    return () => { active = false; };
+  }, [selectedTeamId, teams, leagues, leagueId]);
   function savePlayer(event) {
     event.preventDefault();
     if (remainingPoints !== 0) return;
@@ -104,9 +136,10 @@ export default function PlayerSetupScreen({ onClose, onComplete }) {
         <div className="form-section-title"><span>01</span> IDENTIDAD DEL JUGADOR</div>
         <label>Nombre y apellido<input name="name" placeholder="Ej. Mateo González" autoComplete="name" required maxLength="40" value={previewName} onChange={(e) => setPreviewName(e.target.value)} /></label>
         <label>Dorsal<input name="number" type="number" min="1" max="99" placeholder="10" required value={previewNumber} onChange={(e) => setPreviewNumber(e.target.value)} /></label>
-        <label>Selección nacional<select name="nationality" required value={selectedNationality} onChange={(event) => setSelectedNationality(event.target.value)}><option value="">Elegí tu selección</option>{nationalities.map((item) => <option key={item.code} value={item.name}>{item.name}</option>)}</select></label>
         <div className="form-section-title club-title"><span>02</span> TU PRIMER CLUB</div>
         <div className="setup-row"><label>Liga<select value={leagueId} onChange={(e) => { setLeagueId(e.target.value); setSelectedTeamId(""); }} required><option value="">Elegí una liga</option>{leagues.map((league) => <option key={league.id} value={league.id}>{league.name} · {league.country}</option>)}</select></label><label>Equipo<select name="teamId" value={selectedTeamId} onChange={(e) => setSelectedTeamId(e.target.value)} required disabled={!leagueId || loading || !teams.length}><option value="">{loading ? "Cargando…" : "Elegí tu equipo"}</option>{teams.map((team) => <option key={team.id} value={team.id}>{team.name}</option>)}</select></label></div>
+        <label>Selección nacional<select name="nationality" required value={selectedNationality} onChange={(event) => setSelectedNationality(event.target.value)} disabled={!selectedTeamId}><option value="">{nationalityLoading && !nationalities.length ? "Cargando nacionalidades…" : "Elegí una selección"}</option>{nationalities.map((item) => <option key={item.code} value={item.name}>{item.name}</option>)}</select></label>
+        {error && <div className="setup-error" role="alert">{error}</div>}
         <button className="cta form-cta" type="button" onClick={continueSetup}>Continuar <b>→</b></button>
         </>}
         {step === 2 && <>
@@ -125,9 +158,9 @@ export default function PlayerSetupScreen({ onClose, onComplete }) {
         {remainingPoints !== 0 && <p className="stats-hint" role="status">{remainingPoints > 0 ? `Te quedan ${remainingPoints} puntos por repartir.` : "Repartiste más puntos de los disponibles."}</p>}
         {photoError && <div className="setup-error" role="alert">{photoError}</div>}
         {error && <div className="setup-error" role="alert">{error}</div>}
-        <div className="setup-actions"><button className="setup-back" type="button" onClick={() => setStep(1)}>← Volver</button><button className="cta form-cta" type="submit" disabled={loading || !teams.length || !nationalities.length || remainingPoints !== 0}>Empezar mi carrera <b>↗</b></button></div><div className="fineprint">UNA CARRERA. INFINITAS HISTORIAS.</div>
+        <div className="setup-actions"><button className="setup-back" type="button" onClick={() => setStep(1)}>← Volver</button><button className="cta form-cta" type="submit" disabled={loading || nationalityLoading || !teams.length || !nationalities.length || remainingPoints !== 0}>Empezar mi carrera <b>↗</b></button></div><div className="fineprint">UNA CARRERA. INFINITAS HISTORIAS.</div>
         </>}
-      </form><aside className="player-card"><div className="card-top"><span>Dante, si laburas vas a borrar esto, ANTIPALA</span><span>DC · 01</span></div><div className="card-silhouette"><span className="silhouette-number">{previewNumber || "10"}</span><div className="player-orb">{playerImage ? <img className="player-photo" src={playerImage} alt={previewName ? `Foto de ${previewName}` : "Foto del jugador"} /> : "✳"}</div></div><div className="card-emblems"><div className="card-emblem"><span className="emblem-label">SELECCIÓN</span>{nationalityFlagIsUrl ? <img className="national-flag" src={chosenNationality.flag} alt={`Bandera de ${selectedNationality}`} /> : chosenNationality?.flag ? <span className="national-flag-emoji">{chosenNationality.flag}</span> : <span className="emblem-placeholder">—</span>}<span className="emblem-name">{selectedNationality || "PAÍS"}</span></div><div className="emblem-divider"/><div className="card-emblem"><span className="emblem-label">CLUB</span>{chosenTeam?.crest ? <img className="team-crest" src={chosenTeam.crest} alt={`Escudo de ${chosenTeam.name}`} /> : <span className="emblem-placeholder">DC</span>}<span className="emblem-name">{chosenTeam?.name || "EQUIPO"}</span></div></div><div className="card-data"><strong>{previewName || "TU NOMBRE"}</strong><div className="card-stats" aria-label="Estadísticas del jugador">{STAT_DEFINITIONS.map((stat) => <div key={stat.key}><span>{stat.label}</span><b>{stats[stat.key]}</b></div>)}</div></div><div className="card-bottom"><b>DC</b></div></aside></div>
+      </form><aside className="player-card"><div className="card-top"><span>PLAYER CARD</span><span>DC · 01</span></div><div className="card-silhouette"><span className="silhouette-number">{previewNumber || "10"}</span><div className="player-orb">{playerImage ? <img className="player-photo" src={playerImage} alt={previewName ? `Foto de ${previewName}` : "Foto del jugador"} /> : "✳"}</div></div><div className="card-emblems"><div className="card-emblem"><span className="emblem-label">SELECCIÓN</span>{nationalityFlagIsUrl ? <img className="national-flag" src={chosenNationality.flag} alt={`Bandera de ${selectedNationality}`} /> : chosenNationality?.flag ? <span className="national-flag-emoji">{chosenNationality.flag}</span> : <span className="emblem-placeholder">—</span>}<span className="emblem-name">{selectedNationality || "PAÍS"}</span></div><div className="emblem-divider"/><div className="card-emblem"><span className="emblem-label">CLUB</span>{chosenTeam?.crest ? <img className="team-crest" src={chosenTeam.crest} alt={`Escudo de ${chosenTeam.name}`} /> : <span className="emblem-placeholder">DC</span>}<span className="emblem-name">{chosenTeam?.name || "EQUIPO"}</span></div></div><div className="card-data"><strong>{previewName || "TU NOMBRE"}</strong><div className="card-stats" aria-label="Estadísticas del jugador">{STAT_DEFINITIONS.map((stat) => <div key={stat.key}><span>{stat.label}</span><b>{stats[stat.key]}</b></div>)}</div></div><div className="card-bottom"><b>DC</b></div></aside></div>
     </>
   </main>;
 }
