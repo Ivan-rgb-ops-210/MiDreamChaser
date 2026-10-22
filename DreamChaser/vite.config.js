@@ -23,14 +23,14 @@ function footballDataOrgApi(apiKey) {
     const playerId = requestUrl.searchParams.get("playerId");
     const numericId = (value) => /^\d+$/.test(value || "");
     const competitionId = (value) => /^[A-Za-z0-9]{2,10}$/.test(value || "");
-    if ((route === "team" && !numericId(teamId)) || (route === "nationalities" && !numericId(teamId)) || (route === "player" && !numericId(playerId)) || (route === "competition" && !competitionId(leagueId))) {
+    if ((route === "team" && !numericId(teamId)) || (route === "player" && !numericId(playerId)) || (route === "competition" && !competitionId(leagueId))) {
       res.statusCode = 400;
       res.end(JSON.stringify({ error: "Falta un identificador válido para consultar los datos." }));
       return;
     }
 
-    const id = route === "team" || route === "nationalities" ? teamId : route === "player" ? playerId : leagueId;
-    const cacheKey = route === "leagues" ? route : `${route}:${id}`;
+    const id = route === "team" ? teamId : route === "player" ? playerId : leagueId;
+    const cacheKey = ["leagues", "nationalities"].includes(route) ? route : `${route}:${id}`;
     const cached = cache.get(cacheKey);
     if (cached && Date.now() - cached.cachedAt < 60 * 60 * 1000) {
       res.end(JSON.stringify(cached.data));
@@ -71,17 +71,15 @@ function footballDataOrgApi(apiKey) {
       }
 
       if (route === "nationalities") {
-        if (!/^\d+$/.test(teamId || "")) {
-          res.statusCode = 400;
-          res.end(JSON.stringify({ error: "Elegí un equipo para consultar las nacionalidades disponibles." }));
-          return;
-        }
-        const response = await get(`/teams/${teamId}`);
-        const squadNationalities = (response.squad || []).map((player) => player.nationality).filter(Boolean);
-        const names = squadNationalities.length ? squadNationalities : [response.area?.name].filter(Boolean);
-        const nationalities = [...new Set(names)]
-          .sort((a, b) => a.localeCompare(b, "es"))
-          .map((name) => ({ name, code: name, flag: "" }));
+        const response = await get("/competitions/WC/teams");
+        const unique = new Map((response.teams || [])
+          .filter((team) => team.name)
+          .map((team) => [team.name.toLocaleLowerCase(), {
+            name: team.name,
+            code: team.tla || String(team.id),
+            flag: team.area?.flag || team.crest || "",
+          }]));
+        const nationalities = [...unique.values()].sort((a, b) => a.name.localeCompare(b.name, "es"));
         const data = { nationalities, meta: { count: nationalities.length } };
         cache.set(cacheKey, { data, cachedAt: Date.now() });
         res.end(JSON.stringify(data));
@@ -126,7 +124,6 @@ function footballDataOrgApi(apiKey) {
           shortName: team.shortName || team.name,
           tla: team.tla || "",
           crest: team.crest || "",
-          country: team.area?.name || competition?.area?.name || "",
           position: row.position,
           playedGames: row.playedGames,
           won: row.won,

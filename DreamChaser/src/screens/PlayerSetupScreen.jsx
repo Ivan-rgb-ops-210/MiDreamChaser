@@ -24,17 +24,30 @@ export default function PlayerSetupScreen({ onClose, onComplete }) {
   const [photoError, setPhotoError] = useState("");
   const [selectedTeamId, setSelectedTeamId] = useState("");
   const [loading, setLoading] = useState(false);
-  const [nationalityLoading, setNationalityLoading] = useState(false);
+  const [nationalityLoading, setNationalityLoading] = useState(true);
   const [error, setError] = useState("");
   const [stats, setStats] = useState(() => Object.fromEntries(STAT_DEFINITIONS.map(({ key, initial }) => [key, initial])));
   const spentPoints = STAT_DEFINITIONS.reduce((total, stat) => total + stats[stat.key] - stat.initial, 0);
   const remainingPoints = BONUS_POINTS - spentPoints;
   useEffect(() => {
-    fetch("/api/football/leagues").then((r) => r.json())
-      .then((leagueData) => {
-        setLeagues((leagueData.leagues || []).filter((item) => /la\s*liga|primera division|premier league/i.test(item.league_name || item.name || "")).map((item) => ({ ...item, id: item.league_id || item.id, name: item.league_name || item.name })));
-        if (leagueData.error) setError(leagueData.error);
-      }).catch(() => setError("No pudimos conectar con los datos del fútbol. Intentá de nuevo."));
+    fetch("/api/football/leagues").then(async (response) => {
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || "No pudimos cargar las ligas.");
+        return data;
+      })
+      .then((leagueData) => setLeagues((leagueData.leagues || []).filter((item) => /la\s*liga|primera division|premier league/i.test(item.league_name || item.name || "")).map((item) => ({ ...item, id: item.league_id || item.id, name: item.league_name || item.name }))))
+      .catch((reason) => setError(reason.message));
+    fetch("/api/football/nationalities").then(async (response) => {
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || "No pudimos cargar las selecciones del Mundial.");
+        return data;
+      })
+      .then((nationalityData) => {
+        setNationalities(nationalityData.nationalities || []);
+        if (!(nationalityData.nationalities || []).length) setError("La API no devolvió selecciones participantes del Mundial.");
+      })
+      .catch((reason) => setError(reason.message))
+      .finally(() => setNationalityLoading(false));
   }, []);
   useEffect(() => {
     if (!leagueId) { setTeams([]); return; }
@@ -51,39 +64,6 @@ export default function PlayerSetupScreen({ onClose, onComplete }) {
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
   }, [leagueId]);
-  useEffect(() => {
-    setNationalities([]);
-    setSelectedNationality("");
-    if (!selectedTeamId) return;
-    let active = true;
-    const team = teams.find((item) => String(item.id) === String(selectedTeamId));
-    const league = leagues.find((item) => String(item.id) === String(leagueId));
-    const fallbackNationalities = [...new Set([team?.country, league?.country].filter(Boolean))]
-      .map((name) => ({ name, code: name, flag: "" }));
-    setNationalities(fallbackNationalities);
-    setNationalityLoading(true);
-    setError("");
-    fetch(`/api/football/nationalities?teamId=${selectedTeamId}`, { signal: AbortSignal.timeout(8000) })
-      .then(async (response) => {
-        const data = await response.json();
-        if (!response.ok) throw new Error(data.error || "No pudimos cargar las nacionalidades del equipo.");
-        return data;
-      })
-      .then((data) => {
-        if (!active) return;
-        const available = data.nationalities?.length ? data.nationalities : fallbackNationalities;
-        setNationalities(available);
-        setSelectedNationality((current) => available.some((item) => item.name === current) ? current : "");
-        setError(available.length ? "" : "La API no devolvió nacionalidades ni el país de este equipo.");
-      })
-      .catch((reason) => {
-        if (!active) return;
-        setNationalities(fallbackNationalities);
-        setError(fallbackNationalities.length ? "" : reason.message);
-      })
-      .finally(() => { if (active) setNationalityLoading(false); });
-    return () => { active = false; };
-  }, [selectedTeamId, teams, leagues, leagueId]);
   function savePlayer(event) {
     event.preventDefault();
     if (remainingPoints !== 0) return;
@@ -138,7 +118,7 @@ export default function PlayerSetupScreen({ onClose, onComplete }) {
         <label>Dorsal<input name="number" type="number" min="1" max="99" placeholder="10" required value={previewNumber} onChange={(e) => setPreviewNumber(e.target.value)} /></label>
         <div className="form-section-title club-title"><span>02</span> TU PRIMER CLUB</div>
         <div className="setup-row"><label>Liga<select value={leagueId} onChange={(e) => { setLeagueId(e.target.value); setSelectedTeamId(""); }} required><option value="">Elegí una liga</option>{leagues.map((league) => <option key={league.id} value={league.id}>{league.name} · {league.country}</option>)}</select></label><label>Equipo<select name="teamId" value={selectedTeamId} onChange={(e) => setSelectedTeamId(e.target.value)} required disabled={!leagueId || loading || !teams.length}><option value="">{loading ? "Cargando…" : "Elegí tu equipo"}</option>{teams.map((team) => <option key={team.id} value={team.id}>{team.name}</option>)}</select></label></div>
-        <label>Selección nacional<select name="nationality" required value={selectedNationality} onChange={(event) => setSelectedNationality(event.target.value)} disabled={!selectedTeamId}><option value="">{nationalityLoading && !nationalities.length ? "Cargando nacionalidades…" : "Elegí una selección"}</option>{nationalities.map((item) => <option key={item.code} value={item.name}>{item.name}</option>)}</select></label>
+        <label>Selección nacional<select name="nationality" required value={selectedNationality} onChange={(event) => setSelectedNationality(event.target.value)} disabled={nationalityLoading || !nationalities.length}><option value="">{nationalityLoading ? "Cargando selecciones del Mundial…" : "Elegí una selección"}</option>{nationalities.map((item) => <option key={item.code} value={item.name}>{item.name}</option>)}</select></label>
         {error && <div className="setup-error" role="alert">{error}</div>}
         <button className="cta form-cta" type="button" onClick={continueSetup}>Continuar <b>→</b></button>
         </>}

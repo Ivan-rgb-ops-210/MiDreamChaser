@@ -53,12 +53,12 @@ export default {
   if (!["leagues", "nationalities", "team", "player", "competition"].includes(route)) {
     return json({ error: "Ruta no encontrada." }, 404);
   }
-  if ((route === "team" && !numericId(teamId)) || (route === "nationalities" && !numericId(teamId)) || (route === "player" && !numericId(playerId)) || (route === "competition" && !competitionId(leagueId))) {
+  if ((route === "team" && !numericId(teamId)) || (route === "player" && !numericId(playerId)) || (route === "competition" && !competitionId(leagueId))) {
     return json({ error: "Falta un identificador válido para consultar los datos." }, 400);
   }
 
-  const id = route === "team" || route === "nationalities" ? teamId : route === "player" ? playerId : leagueId;
-  const cacheKey = route === "leagues" ? route : `${route}:${id}`;
+  const id = route === "team" ? teamId : route === "player" ? playerId : leagueId;
+  const cacheKey = ["leagues", "nationalities"].includes(route) ? route : `${route}:${id}`;
   const cached = cache.get(cacheKey);
   if (cached && Date.now() - cached.cachedAt < CACHE_TTL) return json(cached.data);
 
@@ -79,12 +79,15 @@ export default {
     }
 
     if (route === "nationalities") {
-      const response = await fetchFootballData(`/teams/${teamId}`, apiKey);
-      const squadNationalities = (response.squad || []).map((player) => player.nationality).filter(Boolean);
-      const names = squadNationalities.length ? squadNationalities : [response.area?.name].filter(Boolean);
-      const nationalities = [...new Set(names)]
-        .sort((a, b) => a.localeCompare(b, "es"))
-        .map((name) => ({ name, code: name, flag: "" }));
+      const response = await fetchFootballData("/competitions/WC/teams", apiKey);
+      const unique = new Map((response.teams || [])
+        .filter((team) => team.name)
+        .map((team) => [team.name.toLocaleLowerCase(), {
+          name: team.name,
+          code: team.tla || String(team.id),
+          flag: team.area?.flag || team.crest || "",
+        }]));
+      const nationalities = [...unique.values()].sort((a, b) => a.name.localeCompare(b.name, "es"));
       const data = { nationalities, meta: { count: nationalities.length } };
       cache.set(cacheKey, { data, cachedAt: Date.now() });
       return json(data);
@@ -133,7 +136,6 @@ export default {
         shortName: team.shortName || team.name,
         tla: team.tla || "",
         crest: team.crest || "",
-          country: team.area?.name || competition?.area?.name || "",
         position: row.position,
         playedGames: row.playedGames,
         won: row.won,
