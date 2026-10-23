@@ -173,5 +173,9 @@ export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, projectRoot, "");
   // Compatibilidad con el nombre que usaba la configuración anterior.
   const apiKey = env.FOOTBALL_DATA_ORG_API_KEY || env.FOOTBALL_DATA_IO_API_KEY;
-  return { plugins: [react(), footballDataOrgApi(apiKey)] };
+  return {
+    root: projectRoot,
+    envDir: projectRoot,
+    plugins: [react(), footballDataOrgApi(apiKey)],
+  };
 });
