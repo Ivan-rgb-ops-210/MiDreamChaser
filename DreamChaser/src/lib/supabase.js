@@ -9,7 +9,7 @@ export const supabase = supabaseUrl && supabasePublishableKey
 
 export function getSupabaseConfigError() {
   if (!supabaseUrl || !supabasePublishableKey) {
-    return "Falta configurar VITE_SUPABASE_URL y VITE_SUPABASE_PUBLISHABLE_KEY en DreamChaser/.env.";
+    return "Falta configurar VITE_SUPABASE_URL y VITE_SUPABASE_PUBLISHABLE_KEY en Vercel (Settings > Environment Variables) o en DreamChaser/.env para desarrollo local.";
   }
   return "";
 }
