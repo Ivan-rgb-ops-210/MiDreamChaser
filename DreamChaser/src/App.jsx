@@ -17,6 +17,7 @@ export default function App() {
   const [playerProfile, setPlayerProfile] = useState(null);
   const [profileLoading, setProfileLoading] = useState(false);
   const [profileError, setProfileError] = useState("");
+  const [profileLoadedFor, setProfileLoadedFor] = useState(null);
 
   useEffect(() => {
     if (!supabase) return;
@@ -43,13 +44,23 @@ export default function App() {
       setPlayerProfile(null);
       setProfileLoading(false);
       setProfileError("");
+      setProfileLoadedFor(null);
       return () => { active = false; };
     }
     setProfileLoading(true);
     setProfileError("");
+    setProfileLoadedFor(null);
     loadPlayerProfile(user.id)
-      .then((profile) => { if (active) setPlayerProfile(profile); })
-      .catch((error) => { if (active) setProfileError(error.message || "No pudimos cargar tu perfil."); })
+      .then((profile) => {
+        if (!active) return;
+        setPlayerProfile(profile);
+        setProfileLoadedFor(user.id);
+      })
+      .catch((error) => {
+        if (!active) return;
+        setProfileError(error.message || "No pudimos cargar tu perfil.");
+        setProfileLoadedFor(user.id);
+      })
       .finally(() => { if (active) setProfileLoading(false); });
     return () => { active = false; };
   }, [user?.id]);
@@ -67,10 +78,11 @@ export default function App() {
   }, [authLoading, user, pathname]);
 
   useEffect(() => {
-    if (!user || profileLoading || profileError) return;
-    if (pathname === "/career" && !playerProfile) navigate("/playersetup", { replace: true });
-    if (pathname === "/playersetup" && playerProfile) navigate("/career", { replace: true });
-  }, [user, profileLoading, profileError, playerProfile, pathname]);
+    if (!user || profileLoading || profileLoadedFor !== user.id || profileError) return;
+    const hasPlayer = Boolean(playerProfile?.name?.trim() && playerProfile?.team?.name && playerProfile?.league?.name);
+    if (pathname === "/career" && !hasPlayer) navigate("/playersetup", { replace: true });
+    if (pathname === "/playersetup" && hasPlayer) navigate("/career", { replace: true });
+  }, [user, profileLoading, profileLoadedFor, profileError, playerProfile, pathname]);
 
   function navigate(path, { replace = false } = {}) {
     if (window.location.pathname !== path) {
@@ -119,7 +131,7 @@ export default function App() {
     }
   }
 
-  if (authLoading || (!user && ["/career", "/playersetup"].includes(pathname)) || (user && profileLoading && ["/career", "/playersetup"].includes(pathname))) {
+  if (authLoading || (!user && ["/career", "/playersetup"].includes(pathname)) || (user && (profileLoading || profileLoadedFor !== user.id) && ["/career", "/playersetup"].includes(pathname))) {
     return <main className="auth-loading" role="status">Conectando con tu cuenta…</main>;
   }
   if (profileError && ["/career", "/playersetup"].includes(pathname)) {
@@ -127,7 +139,7 @@ export default function App() {
   }
 
   if (pathname === "/playersetup") {
-    return <PlayerSetupScreen user={user} onClose={() => navigate("/", { replace: true })} onComplete={(profile) => { setPlayerProfile(profile); navigate("/career"); }} />;
+    return <PlayerSetupScreen user={user} onClose={() => navigate("/", { replace: true })} onComplete={(profile) => { setPlayerProfile(profile); setProfileLoadedFor(user.id); navigate("/career"); }} />;
   }
   if (pathname === "/career") {
     return <CareerHomeScreen profile={playerProfile} onExit={() => navigate("/")} />;

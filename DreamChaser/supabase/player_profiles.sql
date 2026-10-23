@@ -9,19 +9,16 @@ create table if not exists public.dreamchaser_player_profiles (
 
 alter table public.dreamchaser_player_profiles enable row level security;
 
-drop policy if exists "Users can read their DreamChaser profile" on public.dreamchaser_player_profiles;
 create policy "Users can read their DreamChaser profile"
   on public.dreamchaser_player_profiles for select
   to authenticated
   using ((select auth.uid()) = user_id);
 
-drop policy if exists "Users can create their DreamChaser profile" on public.dreamchaser_player_profiles;
 create policy "Users can create their DreamChaser profile"
   on public.dreamchaser_player_profiles for insert
   to authenticated
   with check ((select auth.uid()) = user_id);
 
-drop policy if exists "Users can update their DreamChaser profile" on public.dreamchaser_player_profiles;
 create policy "Users can update their DreamChaser profile"
   on public.dreamchaser_player_profiles for update
   to authenticated
@@ -29,3 +26,6 @@ create policy "Users can update their DreamChaser profile"
   with check ((select auth.uid()) = user_id);
 
 grant select, insert, update on public.dreamchaser_player_profiles to authenticated;
+
+-- Recarga el esquema de la API de Supabase para que la tabla quede disponible en la app.
+notify pgrst, 'reload schema';
