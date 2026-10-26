@@ -50,19 +50,46 @@ export default {
   const numericId = (value) => /^\d+$/.test(value || "");
   const competitionId = (value) => /^[A-Za-z0-9]{2,10}$/.test(value || "");
 
-  if (!["leagues", "nationalities", "team", "player", "competition"].includes(route)) {
+  if (!["leagues", "nationalities", "team", "player", "competition", "matches"].includes(route)) {
     return json({ error: "Ruta no encontrada." }, 404);
   }
-  if ((route === "team" && !numericId(teamId)) || (route === "player" && !numericId(playerId)) || (route === "competition" && !competitionId(leagueId))) {
+  if ((route === "team" && !numericId(teamId)) || (route === "player" && !numericId(playerId)) || (["competition", "matches"].includes(route) && !competitionId(leagueId))) {
     return json({ error: "Falta un identificador válido para consultar los datos." }, 400);
   }
 
   const id = route === "team" ? teamId : route === "player" ? playerId : leagueId;
-  const cacheKey = ["leagues", "nationalities"].includes(route) ? route : `${route}:${id}`;
+  const dateFrom = url.searchParams.get("dateFrom");
+  const dateTo = url.searchParams.get("dateTo");
+  const validDate = (value) => /^\d{4}-\d{2}-\d{2}$/.test(value || "") && !Number.isNaN(Date.parse(`${value}T00:00:00Z`));
+  if (route === "matches" && ((dateFrom && !validDate(dateFrom)) || (dateTo && !validDate(dateTo)))) {
+    return json({ error: "El rango de fechas no es válido." }, 400);
+  }
+  const cacheKey = ["leagues", "nationalities"].includes(route) ? route : route === "matches" ? `matches:${id}:${dateFrom || ""}:${dateTo || ""}` : `${route}:${id}`;
   const cached = cache.get(cacheKey);
   if (cached && Date.now() - cached.cachedAt < CACHE_TTL) return json(cached.data);
 
   try {
+    if (route === "matches") {
+      const params = new URLSearchParams();
+      if (dateFrom) params.set("dateFrom", dateFrom);
+      if (dateTo) params.set("dateTo", dateTo);
+      const response = await fetchFootballData(`/competitions/${leagueId}/matches${params.size ? `?${params}` : ""}`, apiKey);
+      const matches = (response.matches || []).map((match) => ({
+        id: match.id,
+        utcDate: match.utcDate,
+        status: match.status,
+        matchday: match.matchday,
+        homeTeam: { id: match.homeTeam?.id, name: match.homeTeam?.name || "Local", shortName: match.homeTeam?.shortName || match.homeTeam?.tla || match.homeTeam?.name || "Local", tla: match.homeTeam?.tla || "", crest: match.homeTeam?.crest || "" },
+        awayTeam: { id: match.awayTeam?.id, name: match.awayTeam?.name || "Visitante", shortName: match.awayTeam?.shortName || match.awayTeam?.tla || match.awayTeam?.name || "Visitante", tla: match.awayTeam?.tla || "", crest: match.awayTeam?.crest || "" },
+        homeScore: match.score?.fullTime?.home,
+        awayScore: match.score?.fullTime?.away,
+        competition: response.competition?.name || "",
+      }));
+      const data = { competition: response.competition, season: response.filters?.season || response.resultSet?.first?.slice(0, 4) || "", matches };
+      cache.set(cacheKey, { data, cachedAt: Date.now() });
+      return json(data);
+    }
+
     if (route === "leagues") {
       const response = await fetchFootballData("/competitions", apiKey);
       const leagues = (response.competitions || []).map((competition) => ({

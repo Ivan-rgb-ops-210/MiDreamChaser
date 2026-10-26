@@ -1202,6 +1202,32 @@ footer > span {
 .career-section-view { padding-top:35px; }
 @media(max-width:850px) { .career-dashboard-sketch { grid-template-columns:minmax(0,1fr) minmax(300px,.95fr); }.career-topnav button { padding:0 11px;font-size:9px; } }
 @media(max-width:650px) { .career-topbar { min-height:62px;padding:0 13px; }.career-brand img { width:35px;height:35px; }.career-season { display:none; }.career-topnav { min-height:46px;padding:0 8px;gap:0; }.career-topnav button { flex:0 0 auto;padding:0 13px;font-size:8px; }.career-home-content { min-height:calc(100vh - 108px);padding:12px 11px 12px; }.career-dashboard-sketch { min-height:0;grid-template-columns:1fr;gap:9px; }.career-empty-feature { min-height:300px; }.career-right-stack { min-height:0;grid-template-rows:190px 220px;gap:9px; }.career-right-stack .match-card-inner { padding:7px; }.career-right-stack .match-crest { width:36px;height:36px; }.career-right-stack .match-club strong { max-width:100px;font-size:9px; }.career-home-content>.career-footer { padding-top:14px; }.career-section-view { padding-top:24px; } }
+/* Career home: match and standings stack on the left, with an open panel beside them. */
+.career-dashboard-sketch { grid-template-columns:minmax(0,1fr) minmax(0,1fr); }
+.career-left-stack { min-height:500px;display:grid;grid-template-rows:minmax(145px,.55fr) minmax(285px,1.45fr);gap:9px; }
+.career-left-stack>.career-match-panel { grid-column:auto;display:flex;flex-direction:column;width:100%;padding:0;border:1px solid #ffffff20;background:linear-gradient(145deg,#101914ed,#0b110eea);box-shadow:0 16px 45px #0002;text-align:inherit;font:inherit;color:inherit;cursor:pointer;transition:background .18s,border-color .18s,transform .18s,box-shadow .18s; }
+.career-left-stack>.career-match-panel:hover,.career-left-stack>.career-match-panel:focus-visible { border-color:#a4ee5580;background:linear-gradient(145deg,#243a28,#122017);box-shadow:0 12px 36px #a4ee5518;transform:translateY(-2px);outline:none; }
+.career-left-stack>.career-match-panel .panel-kicker { width:100%; }
+.career-left-stack .match-card-inner { flex:1;min-height:0;padding:12px; }
+.career-left-stack>.career-table-panel { grid-column:auto;display:flex;flex-direction:column; }
+.career-left-stack .table-empty { flex:1;min-height:90px; }
+.career-left-stack .career-table-panel .panel-kicker { min-height:42px; }
+.career-empty-feature { min-height:500px; }
+.career-table-feature { min-height:500px;display:flex;flex-direction:column; }
+.career-table-feature .table-head { grid-template-columns:50px 1fr 42px;padding-top:14px;padding-bottom:14px;border-bottom:1px solid #ffffff10; }
+.career-table-feature .career-standings-list { flex:1;display:flex;align-items:center;justify-content:center; }
+.career-table-feature .table-empty { width:100%;min-height:130px;justify-content:center;text-align:center; }
+.career-table-feature .career-standings-list { display:block;overflow:auto; }
+.career-table-feature .career-zero-head,.zero-standing-row { grid-template-columns:28px minmax(90px,1fr) repeat(8,minmax(22px,34px)); }
+.career-table-feature .career-zero-head { padding:12px 10px;color:#91a094;font-size:7px;text-align:center; }
+.career-table-feature .career-zero-head span:nth-child(2) { text-align:left; }
+.zero-standing-row { min-height:35px;padding:4px 10px;display:grid;align-items:center;border-top:1px solid #ffffff0d;color:#879589;font:500 10px "Oswald",sans-serif;text-align:center; }
+.zero-standing-row>span:first-child { color:#a5b0a4; }
+.zero-standing-row .standing-team { text-align:left; }
+.zero-stat { color:#d5ddd1;font-size:10px; }
+.career-left-stack>.career-lower-empty { min-height:0; }
+@media(max-width:850px) { .career-dashboard-sketch { grid-template-columns:minmax(0,1fr) minmax(0,.95fr); }.career-left-stack { grid-template-rows:minmax(145px,.55fr) minmax(285px,1.45fr); } }
+@media(max-width:650px) { .career-dashboard-sketch { grid-template-columns:1fr; }.career-left-stack { min-height:0;grid-template-rows:150px 270px; }.career-left-stack .match-card-inner { padding:7px; }.career-left-stack .match-crest { width:36px;height:36px; }.career-left-stack .match-club strong { max-width:100px;font-size:9px; }.career-empty-feature { min-height:220px; } }
 .player-setup > p { line-height: 1.6; }
 .player-setup form { gap: 12px; }
 .setup-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
@@ -1775,3 +1801,58 @@ footer > span {
   .creation-layout { margin-top: 14px; }
   .player-card { width: min(100%, 320px); height: 480px; }
 }
+
+/* Live league standings and the match calendar. */
+.career-left-stack>.career-table-panel { min-height:0; }
+.career-standings-list { flex:1;min-height:0;overflow-y:auto;scrollbar-color:#52654d #101914;scrollbar-width:thin; }
+.career-standings-list .table-empty { min-height:110px; }
+.standing-row { min-height:30px;padding:4px 15px;display:grid;grid-template-columns:35px minmax(0,1fr) 42px;align-items:center;border-top:1px solid #ffffff0d;color:#b9c4b8;font-size:9px; }
+.standing-row>span:first-child { color:#879589;font:500 12px "Oswald",sans-serif; }
+.standing-row>strong { color:#f2f3ed;text-align:right;font:600 12px "Oswald",sans-serif; }
+.standing-team { min-width:0;display:flex;align-items:center;gap:8px; }
+.standing-team img { flex:none;width:17px;height:17px;object-fit:contain; }
+.standing-team b { overflow:hidden;color:#e1e8de;font-size:9px;text-overflow:ellipsis;white-space:nowrap; }
+.standing-row.is-player-team { background:linear-gradient(90deg,#a4ee551f,transparent); }
+.standing-row.is-player-team>span:first-child,.standing-row.is-player-team>strong { color:var(--green); }
+.calendar-layout { flex:1;min-height:0;display:grid;grid-template-columns:minmax(0,3fr) minmax(210px,.85fr);gap:25px; }
+.calendar-main { min-width:0; }
+.calendar-title { min-height:69px;display:flex;align-items:center;justify-content:space-between;gap:14px; }
+.calendar-title h1 { margin:4px 0 0;font:600 clamp(33px,4vw,50px)/.95 var(--display);letter-spacing:.2px; }
+.calendar-title h1 span { display:inline-grid;place-items:center;width:33px;height:33px;border:1px solid #ffffff55;border-radius:4px;color:#dce6dc;font:500 21px "Oswald",sans-serif;vertical-align:middle; }
+.calendar-title h1 span img { max-width:100%;max-height:100%;object-fit:contain; }
+.calendar-controls { display:flex;gap:6px; }
+.calendar-controls button { width:34px;height:34px;border:1px solid #ffffff30;background:#101914a8;color:#e1e9dd;font-size:22px;line-height:1;cursor:pointer;transition:.18s; }
+.calendar-controls button:hover { border-color:var(--green);background:#a4ee5522;color:var(--green); }
+.calendar-grid { display:grid;grid-template-columns:repeat(7,minmax(0,1fr));border-top:1px solid #ffffff1e;border-left:1px solid #ffffff1e; }
+.calendar-weekday { min-height:28px;padding:8px 7px;color:#9ca99e;font-size:8px;letter-spacing:.8px;border-right:1px solid #ffffff1e;border-bottom:1px solid #ffffff1e; }
+.calendar-day { min-width:0;min-height:76px;padding:4px;display:flex;flex-direction:column;align-items:stretch;gap:3px;overflow:hidden;border:0;border-right:1px solid #ffffff1e;border-bottom:1px solid #ffffff1e;background:#111a1dcc;color:#e5e9df;text-align:left;cursor:pointer;transition:background .15s; }
+.calendar-day:hover { background:#28362b; }
+.calendar-day.is-outside { color:#667368;background:#0e1512bb; }
+.calendar-day.is-selected { outline:1px solid var(--green);outline-offset:-1px; }
+.calendar-day.has-match { background:linear-gradient(145deg,#426fc8,#243e77); }
+.calendar-day.has-match:hover,.calendar-day.has-match.is-selected { background:linear-gradient(145deg,#5688e8,#2d4f91); }
+.calendar-day-number { padding:1px 2px;color:inherit;font:500 11px "Oswald",sans-serif; }
+.calendar-fixture { min-width:0;min-height:30px;padding:3px;display:flex;align-items:center;gap:4px;background:#0c1724a8; }
+.fixture-crests { flex:none;display:flex;flex-direction:column;align-items:center;gap:2px; }
+.fixture-crests img,.fixture-crests i { width:15px;height:15px;display:grid;place-items:center;object-fit:contain;color:#e8f0ff;font-size:7px;font-style:normal; }
+.fixture-info { min-width:0;display:grid;gap:2px; }
+.fixture-info b { overflow:hidden;color:#f3f6ff;font-size:7px;line-height:1.2;text-overflow:ellipsis;white-space:nowrap; }
+.fixture-info em { font-style:normal;color:#c3d1ec; }
+.fixture-info small { color:#b8d5ff;font-size:6px;letter-spacing:.4px; }
+.calendar-feedback { min-height:30px;padding:10px 1px;color:#91a090;font-size:8px;letter-spacing:1px; }
+.calendar-aside { padding-top:63px; }
+.calendar-date-block { display:grid;gap:2px;padding-bottom:17px;border-bottom:1px solid #ffffff22;text-transform:uppercase; }
+.calendar-date-block strong { color:#f3f3e9;font:600 40px/.9 var(--display); }
+.calendar-date-block span { color:var(--green);font:500 21px/1 var(--display); }
+.calendar-aside-section { padding:17px 0;border-bottom:1px solid #ffffff22; }
+.calendar-aside-section>b { display:block;margin-bottom:9px;color:#edf0e7;font-size:9px;letter-spacing:.7px; }
+.calendar-aside-section>span { color:#9eac9f;font-size:8px;text-transform:uppercase; }
+.calendar-aside-section>p { margin:8px 0 0;color:#879489;font-size:9px;line-height:1.5; }
+.calendar-detail-match { margin-top:10px;padding:9px;display:grid;gap:4px;border-left:2px solid var(--green);background:#101914bb; }
+.calendar-detail-match>span { color:#9ead9d;font-size:7px; }
+.calendar-detail-match>b { color:#ecf1e9;font-size:9px; }
+.calendar-detail-match>strong { color:var(--green);font:600 20px "Oswald",sans-serif; }
+.calendar-rules p { display:grid;grid-template-columns:16px 1fr;gap:6px;margin:9px 0;color:#a6b0a5;font-size:8px;line-height:1.4; }
+.calendar-rules p i { color:var(--green);font-style:normal; }
+@media(max-width:850px) { .calendar-layout { grid-template-columns:minmax(0,1fr) 180px;gap:15px; }.calendar-day { min-height:66px;padding:3px; }.fixture-info b { font-size:6px; } }
+@media(max-width:650px) { .calendar-layout { display:flex;flex-direction:column;gap:4px; }.calendar-title { min-height:58px; }.calendar-title h1 { font-size:34px; }.calendar-title h1 span { width:27px;height:27px;font-size:17px; }.calendar-controls button { width:30px;height:30px; }.calendar-weekday { min-height:24px;padding:7px 2px;text-align:center;font-size:6px; }.calendar-day { min-height:62px;padding:3px 2px;gap:2px; }.calendar-day-number { font-size:9px; }.calendar-fixture { min-height:22px;padding:2px;gap:2px; }.fixture-crests img,.fixture-crests i { width:11px;height:11px; }.fixture-info b { font-size:5px; }.fixture-info small { font-size:5px; }.calendar-aside { padding-top:0;display:grid;grid-template-columns:1fr 1fr;gap:12px; }.calendar-date-block { grid-column:1/-1;padding:12px 0; }.calendar-aside-section { padding:11px 0; }.calendar-rules { display:none; }.career-standings-list { max-height:360px; } }
