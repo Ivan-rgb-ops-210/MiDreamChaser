@@ -32,39 +32,21 @@ export default function AuthScreen({ mode, onClose, onMode, onSubmit, busy, erro
           event.preventDefault();
           const form = new FormData(event.currentTarget);
           onSubmit({
-            username: String(form.get("username") || "").trim(),
-            email: String(form.get("email") || "").trim(),
+            firstName: String(form.get("firstName") || "").trim(),
+            lastName: String(form.get("lastName") || "").trim(),
             password: String(form.get("password") || ""),
           });
         }}>
-          {signup && (
-            <label>
-              Nombre de usuario
-              <input
-                name="username"
-                placeholder="El nombre en tu camiseta"
-                autoComplete="nickname"
-                required
-                maxLength="40"
-              />
-            </label>
-          )}
-          <label>
-            Email
-            <input
-              name="email"
-              type="email"
-              placeholder="jugador@ejemplo.com"
-              autoComplete="email"
-              required
-            />
+          {signup && <label>Nombre<input name="firstName" placeholder="Ej. Mateo" autoComplete="given-name" required maxLength="40" /></label>}
+          <label>Apellido del jugador
+            <input name="lastName" placeholder="Ej. González" autoComplete="family-name" required maxLength="40" />
           </label>
           <label>
             Contraseña
             <input
               name="password"
               type="password"
-              placeholder="Mínimo 8 caracteres"
+              placeholder="Elegí una contraseña"
               autoComplete={signup ? "new-password" : "current-password"}
               minLength="8"
               required
@@ -77,7 +59,7 @@ export default function AuthScreen({ mode, onClose, onMode, onSubmit, busy, erro
           </button>
         </form>
         <div className="switch">
-          {signup ? "¿Ya tenés una cuenta?" : "¿Todavía no tenés cuenta?"}{" "}
+          {signup ? "¿Ya tenés una carrera?" : "¿Todavía no tenés carrera?"}{" "}
           <button onClick={() => onMode(signup ? "login" : "signup")}>
             {signup ? "Iniciá sesión" : "Registrate"}
           </button>

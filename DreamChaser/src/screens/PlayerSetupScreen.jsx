@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Mark, Stadium } from "../components/Brand.jsx";
-import { savePlayerProfile } from "../lib/playerProfiles.js";
+import { saveCareerProfile } from "../lib/careerAccounts.js";
 
 const STAT_DEFINITIONS = [
   { key: "pace", label: "Ritmo", initial: 60 },
@@ -18,7 +18,7 @@ export default function PlayerSetupScreen({ user, onClose, onComplete }) {
   const [nationalities, setNationalities] = useState([]);
   const [selectedNationality, setSelectedNationality] = useState("");
   const [teams, setTeams] = useState([]);
-  const [previewName, setPreviewName] = useState("");
+  const [previewName] = useState(`${user?.firstName || ""} ${user?.lastName || ""}`.trim());
   const [previewNumber, setPreviewNumber] = useState("");
   const [step, setStep] = useState(1);
   const [playerImage, setPlayerImage] = useState("");
@@ -87,7 +87,7 @@ export default function PlayerSetupScreen({ user, onClose, onComplete }) {
     setSaving(true);
     setError("");
     try {
-      await savePlayerProfile(user.id, profile);
+      saveCareerProfile(user.id, profile);
       onComplete(profile);
     } catch (reason) {
       setError(reason.message || "No pudimos guardar tu jugador. Revisá tu conexión e intentá de nuevo.");
@@ -128,7 +128,7 @@ export default function PlayerSetupScreen({ user, onClose, onComplete }) {
         <div className="setup-progress" aria-label={`Paso ${step} de 2`}><span className={step === 1 ? "is-active" : "is-complete"}>1</span><i /><span className={step === 2 ? "is-active" : ""}>2</span><small>{step === 1 ? "IDENTIDAD Y CLUB" : "FOTO Y ESTADÍSTICAS"}</small></div>
         {step === 1 && <>
         <div className="form-section-title"><span>01</span> IDENTIDAD DEL JUGADOR</div>
-        <label>Nombre y apellido<input name="name" placeholder="Ej. Mateo González" autoComplete="name" required maxLength="40" value={previewName} onChange={(e) => setPreviewName(e.target.value)} /></label>
+        <div className="setup-name-preview">JUGADOR: <strong>{previewName}</strong></div>
         <label>Dorsal<input name="number" type="number" min="1" max="99" placeholder="10" required value={previewNumber} onChange={(e) => setPreviewNumber(e.target.value)} /></label>
         <div className="form-section-title club-title"><span>02</span> TU PRIMER CLUB</div>
         <div className="setup-row"><label>Liga<select value={leagueId} onChange={(e) => { setLeagueId(e.target.value); setSelectedTeamId(""); }} required><option value="">Elegí una liga</option>{leagues.map((league) => <option key={league.id} value={league.id}>{league.name} · {league.country}</option>)}</select></label><label>Equipo<select name="teamId" value={selectedTeamId} onChange={(e) => setSelectedTeamId(e.target.value)} required disabled={!leagueId || loading || !teams.length}><option value="">{loading ? "Cargando…" : "Elegí tu equipo"}</option>{teams.map((team) => <option key={team.id} value={team.id}>{team.name}</option>)}</select></label></div>
