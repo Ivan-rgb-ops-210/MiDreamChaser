@@ -24,13 +24,13 @@ export default function App() {
     return () => window.removeEventListener("popstate", syncPath);
   }, []);
   useEffect(() => {
-    if (authLoading || user || !["/career", "/playersetup"].includes(pathname)) return;
+    if (authLoading || user || !["/career", "/playersetup", "/match", "/match-summary"].includes(pathname)) return;
     navigate("/", { replace: true }); setAuthMode("login");
   }, [authLoading, user, pathname]);
   useEffect(() => {
     if (!user) return;
     const hasPlayer = Boolean(playerProfile?.name?.trim() && playerProfile?.team?.name && playerProfile?.league?.name);
-    if (pathname === "/career" && !hasPlayer) navigate("/playersetup", { replace: true });
+    if (["/career", "/match", "/match-summary"].includes(pathname) && !hasPlayer) navigate("/playersetup", { replace: true });
     if (pathname === "/playersetup" && hasPlayer) navigate("/career", { replace: true });
   }, [user, playerProfile, pathname]);
   function navigate(path, { replace = false } = {}) {
@@ -50,8 +50,8 @@ export default function App() {
     } catch (error) { setAuthError(error.message || "No pudimos completar la operación."); }
     finally { setAuthBusy(false); }
   }
-  if (authLoading || (!user && ["/career", "/playersetup"].includes(pathname))) return <main className="auth-loading" role="status">Cargando tu carrera…</main>;
+  if (authLoading || (!user && ["/career", "/playersetup", "/match", "/match-summary"].includes(pathname))) return <main className="auth-loading" role="status">Cargando tu carrera…</main>;
   if (pathname === "/playersetup") return <PlayerSetupScreen user={user} onClose={() => navigate("/", { replace: true })} onComplete={(profile) => { setPlayerProfile(profile); navigate("/career"); }} />;
-  if (pathname === "/career") return <CareerHomeScreen profile={playerProfile} onExit={() => { logoutCareer(); setUser(null); setPlayerProfile(null); navigate("/"); }} />;
+  if (["/career", "/match", "/match-summary"].includes(pathname)) return <CareerHomeScreen profile={playerProfile} screenPath={pathname} onNavigate={navigate} onExit={() => { logoutCareer(); setUser(null); setPlayerProfile(null); navigate("/"); }} />;
   return <><HomeScreen onLogin={() => setAuthMode("login")} onSignup={() => setAuthMode("signup")} /><AuthScreen mode={authMode} onClose={() => setAuthMode(null)} onMode={(mode) => { setAuthError(""); setAuthMode(mode); }} onSubmit={submitAuth} busy={authBusy} error={authError} /></>;
 }
