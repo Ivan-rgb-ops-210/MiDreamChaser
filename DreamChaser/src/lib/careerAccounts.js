@@ -1,42 +1,71 @@
-const ACCOUNTS_KEY = "dreamchaser.careers.v1";
-const SESSION_KEY = "dreamchaser.session.v1";
+import { supabase } from "./supabase.js";
+
+const SESSION_KEY = "dreamchaser.session.v2";
 const normalize = (value) => value.trim().normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLocaleLowerCase("es");
-const readAccounts = () => JSON.parse(localStorage.getItem(ACCOUNTS_KEY) || "{}");
-const encode = (buffer) => btoa(String.fromCharCode(...new Uint8Array(buffer)));
-async function passwordHash(password, salt) {
-  const key = await crypto.subtle.importKey("raw", new TextEncoder().encode(password), "PBKDF2", false, ["deriveBits"]);
-  return encode(await crypto.subtle.deriveBits({ name: "PBKDF2", salt: new TextEncoder().encode(salt), iterations: 120000, hash: "SHA-256" }, key, 256));
+const getToken = () => localStorage.getItem(SESSION_KEY);
+
+function sessionFrom(data) {
+  if (!data?.session_token || !data?.id) throw new Error("Supabase no devolvió una sesión válida.");
+  localStorage.setItem(SESSION_KEY, data.session_token);
+  return { id: data.id, token: data.session_token, firstName: data.first_name, lastName: data.last_name };
 }
-export function getCareerSession() {
-  try {
-    const id = sessionStorage.getItem(SESSION_KEY);
-    const account = Object.values(readAccounts()).find((entry) => entry.id === id);
-    return account ? { id, firstName: account.firstName, lastName: account.lastName } : null;
-  } catch { return null; }
+
+export async function getCareerSession() {
+  const token = getToken();
+  if (!token) return null;
+  const { data, error } = await supabase.rpc("dreamchaser_resume_career", { p_session_token: token });
+  if (error || !data?.id) {
+    localStorage.removeItem(SESSION_KEY);
+    return null;
+  }
+  return { id: data.id, token, firstName: data.first_name, lastName: data.last_name };
 }
+
 export async function createCareer({ firstName, lastName, password }) {
-  const key = normalize(lastName);
-  const accounts = readAccounts();
-  if (accounts[key]) throw new Error("Ya existe una carrera con ese apellido. Iniciá sesión o elegí otro apellido.");
-  const id = crypto.randomUUID();
-  const salt = crypto.randomUUID();
-  accounts[key] = { id, firstName: firstName.trim(), lastName: lastName.trim(), salt, passwordHash: await passwordHash(password, salt), profile: null };
-  localStorage.setItem(ACCOUNTS_KEY, JSON.stringify(accounts));
-  sessionStorage.setItem(SESSION_KEY, id);
-  return { id, firstName: accounts[key].firstName, lastName: accounts[key].lastName };
+  const { data, error } = await supabase.rpc("dreamchaser_create_career", {
+    p_first_name: firstName.trim(),
+    p_last_name: lastName.trim(),
+    p_last_name_key: normalize(lastName),
+    p_password: password,
+  });
+  if (error) {
+    if (error.message?.includes("CAREER_EXISTS")) throw new Error("Ya existe una carrera con ese apellido. Iniciá sesión o elegí otro apellido.");
+    throw error;
+  }
+  return sessionFrom(data);
 }
+
 export async function loginCareer({ lastName, password }) {
-  const account = readAccounts()[normalize(lastName)];
-  if (!account || await passwordHash(password, account.salt) !== account.passwordHash) throw new Error("Apellido o contraseña incorrectos.");
-  sessionStorage.setItem(SESSION_KEY, account.id);
-  return { id: account.id, firstName: account.firstName, lastName: account.lastName };
+  const { data, error } = await supabase.rpc("dreamchaser_login_career", {
+    p_last_name_key: normalize(lastName),
+    p_password: password,
+  });
+  if (error) {
+    if (error.message?.includes("INVALID_CREDENTIALS")) throw new Error("Apellido o contraseña incorrectos.");
+    throw error;
+  }
+  return sessionFrom(data);
 }
-export function logoutCareer() { sessionStorage.removeItem(SESSION_KEY); }
-export function loadCareerProfile(id) { return Object.values(readAccounts()).find((account) => account.id === id)?.profile || null; }
-export function saveCareerProfile(id, profile) {
-  const accounts = readAccounts();
-  const entry = Object.values(accounts).find((account) => account.id === id);
-  if (!entry) throw new Error("No encontramos esta carrera en este dispositivo.");
-  entry.profile = profile;
-  localStorage.setItem(ACCOUNTS_KEY, JSON.stringify(accounts));
+
+export async function logoutCareer() {
+  const token = getToken();
+  localStorage.removeItem(SESSION_KEY);
+  if (token) {
+    try { await supabase.rpc("dreamchaser_logout_career", { p_session_token: token }); }
+    catch { /* La sesión local queda cerrada aunque no haya conexión. */ }
+  }
+}
+
+export async function loadCareerProfile(token) {
+  const { data, error } = await supabase.rpc("dreamchaser_load_player_profile", { p_session_token: token });
+  if (error) throw error;
+  return data || null;
+}
+
+export async function saveCareerProfile(token, profile) {
+  const { error } = await supabase.rpc("dreamchaser_save_player_profile", {
+    p_session_token: token,
+    p_profile: profile,
+  });
+  if (error) throw error;
 }

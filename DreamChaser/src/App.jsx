@@ -14,9 +14,20 @@ export default function App() {
   const [authError, setAuthError] = useState("");
   const [playerProfile, setPlayerProfile] = useState(null);
   useEffect(() => {
-    const session = getCareerSession();
-    if (session) { setUser(session); setPlayerProfile(loadCareerProfile(session.id)); }
-    setAuthLoading(false);
+    let active = true;
+    (async () => {
+      try {
+        const session = await getCareerSession();
+        if (!active || !session) return;
+        setUser(session);
+        setPlayerProfile(await loadCareerProfile(session.token));
+      } catch (error) {
+        if (active) setAuthError(error.message || "No pudimos conectar con Supabase.");
+      } finally {
+        if (active) setAuthLoading(false);
+      }
+    })();
+    return () => { active = false; };
   }, []);
   useEffect(() => {
     const syncPath = () => setPathname(window.location.pathname);
@@ -45,13 +56,13 @@ export default function App() {
         setUser(account); setPlayerProfile(null); navigate("/playersetup");
       } else {
         const account = await loginCareer(credentials);
-        setUser(account); setPlayerProfile(loadCareerProfile(account.id)); navigate("/career");
+        setUser(account); setPlayerProfile(await loadCareerProfile(account.token)); navigate("/career");
       }
     } catch (error) { setAuthError(error.message || "No pudimos completar la operación."); }
     finally { setAuthBusy(false); }
   }
   if (authLoading || (!user && ["/career", "/playersetup", "/match", "/match-summary"].includes(pathname))) return <main className="auth-loading" role="status">Cargando tu carrera…</main>;
   if (pathname === "/playersetup") return <PlayerSetupScreen user={user} onClose={() => navigate("/", { replace: true })} onComplete={(profile) => { setPlayerProfile(profile); navigate("/career"); }} />;
-  if (["/career", "/match", "/match-summary"].includes(pathname)) return <CareerHomeScreen profile={playerProfile} screenPath={pathname} onNavigate={navigate} onExit={() => { logoutCareer(); setUser(null); setPlayerProfile(null); navigate("/"); }} />;
+  if (["/career", "/match", "/match-summary"].includes(pathname)) return <CareerHomeScreen profile={playerProfile} screenPath={pathname} onNavigate={navigate} onExit={async () => { await logoutCareer(); setUser(null); setPlayerProfile(null); navigate("/"); }} />;
   return <><HomeScreen onLogin={() => setAuthMode("login")} onSignup={() => setAuthMode("signup")} /><AuthScreen mode={authMode} onClose={() => setAuthMode(null)} onMode={(mode) => { setAuthError(""); setAuthMode(mode); }} onSubmit={submitAuth} busy={authBusy} error={authError} /></>;
 }

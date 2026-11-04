@@ -87,7 +87,7 @@ export default function PlayerSetupScreen({ user, onClose, onComplete }) {
     setSaving(true);
     setError("");
     try {
-      saveCareerProfile(user.id, profile);
+      await saveCareerProfile(user.token, profile);
       onComplete(profile);
     } catch (reason) {
       setError(reason.message || "No pudimos guardar tu jugador. Revisá tu conexión e intentá de nuevo.");
