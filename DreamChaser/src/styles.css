@@ -1893,6 +1893,33 @@ footer > span {
 .career-cup-bracket--international .cup-tie.is-player-tie>span { color:#f0e4ff; }
 .cup-bracket-empty { flex:1;display:grid;place-items:center;padding:30px;color:#9aa69a;font-size:10px;text-align:center; }
 @media(max-width:650px) { .home-competition-picker { gap:6px;margin-bottom:9px; }.home-competition-picker>span { width:100%; }.competition-choice { min-height:29px;padding:0 9px;font-size:7px; }.career-cup-bracket { min-height:310px; }.cup-bracket-rounds { grid-template-columns:repeat(4,minmax(105px,1fr)); } }
+
+/* Larger competition panels and a ten-row visible standings window. */
+.home-competition-picker { gap:11px;margin-bottom:18px; }
+.home-competition-picker>span { font-size:11px; }
+.competition-choice { min-height:43px;padding:0 18px;font-size:12px;letter-spacing:.8px; }
+.career-left-stack { grid-template-rows:minmax(160px,.55fr) minmax(490px,1.45fr); }
+.career-table-feature { min-height:690px; }
+.career-table-feature .career-zero-head,.career-table-feature .zero-standing-row { grid-template-columns:42px minmax(180px,1fr) repeat(8,minmax(38px,52px)); }
+.career-table-feature .career-zero-head { min-height:54px;padding:13px 16px;font-size:11px; }
+.career-table-feature .career-standings-list { flex:0 0 auto;height:540px;max-height:540px;overflow-y:auto;overflow-x:auto;scrollbar-color:#718765 #101914;scrollbar-width:thin; }
+.career-table-feature .zero-standing-row { min-height:53px;padding:7px 16px;font-size:14px; }
+.career-table-feature .zero-standing-row .standing-team { display:flex;align-items:center;gap:12px;min-width:0; }
+.career-table-feature .standing-team img { width:30px;height:30px;object-fit:contain; }
+.career-table-feature .standing-team b { overflow:hidden;font-size:14px;text-overflow:ellipsis;white-space:nowrap; }
+.career-table-feature .zero-stat { font-size:13px; }
+.career-table-feature .table-foot { min-height:42px;font-size:10px; }
+.career-cup-bracket { min-height:650px; }
+.cup-bracket-rounds { grid-template-columns:repeat(4,minmax(190px,1fr));gap:15px;padding:19px 16px; }
+.cup-round { gap:12px; }
+.cup-round h3 { font-size:19px; }
+.cup-round h3 small { font-size:9px; }
+.cup-tie { padding:10px 8px; }
+.cup-tie>span { padding:6px 4px;font-size:12px; }
+.cup-tie>span+i { font-size:9px; }
+.cup-bracket-empty { font-size:14px; }
+@media(max-width:850px) { .career-left-stack { grid-template-rows:minmax(155px,.45fr) minmax(690px,1.55fr); }.career-table-feature { min-height:690px; }.career-table-feature .career-standings-list { height:540px;max-height:540px; } }
+@media(max-width:650px) { .home-competition-picker { gap:8px;margin-bottom:14px; }.home-competition-picker>span { font-size:10px; }.competition-choice { min-height:40px;padding:0 13px;font-size:10px; }.career-left-stack { grid-template-rows:150px minmax(660px,1fr); }.career-table-feature { min-height:660px; }.career-table-feature .career-zero-head,.career-table-feature .zero-standing-row { grid-template-columns:34px minmax(150px,1fr) repeat(8,minmax(34px,42px)); }.career-table-feature .career-standings-list { height:520px;max-height:520px; }.career-cup-bracket { min-height:520px; }.cup-bracket-rounds { grid-template-columns:repeat(4,minmax(165px,1fr));gap:11px; }.cup-round h3 { font-size:16px; }.cup-tie>span { font-size:10px; } }
 .calendar-match-card::before { content:"";position:absolute;inset:0;pointer-events:none;background:repeating-linear-gradient(135deg,transparent 0 17px,#ffffff08 18px 19px); }
 .calendar-card-top,.calendar-card-date,.calendar-card-teams,.calendar-card-bottom { position:relative; }
 .calendar-card-top { display:flex;align-items:center;justify-content:space-between;gap:7px;color:#d4e2ce;font-size:7px;letter-spacing:1px; }

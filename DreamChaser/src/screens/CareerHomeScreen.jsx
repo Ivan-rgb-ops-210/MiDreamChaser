@@ -25,7 +25,6 @@ const seasonStartFor = (profile, reference = new Date()) => {
 };
 const competitionTone = (match) => match.id?.startsWith("international-") ? "international" : match.id?.startsWith("cup-") ? "cup" : "league";
 const FORMATIONS = [["ARQ", 1], ["DEF", 4], ["MED", 3], ["DEL", 3]];
-const SAMPLE_NAMES = ["Mateo Ríos", "Lautaro Vera", "Bruno Acosta", "Tomás Sosa", "Nicolás Díaz", "Franco Molina", "Julián Costa", "Thiago López", "Santino Pereyra", "Benjamín Suárez", "Valentín Romero", "Lucas Méndez", "Facundo Torres", "Emiliano Castro", "Agustín Silva", "Ramiro Navarro", "Ignacio Gómez", "Dylan Herrera", "Máximo Fernández", "Gael Domínguez", "Bautista Ortiz"];
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 function seededRandom(seedText) {
   let seed = [...seedText].reduce((sum, char) => (sum * 31 + char.charCodeAt(0)) >>> 0, 17);
@@ -42,26 +41,33 @@ function regulationMinute(tick, firstHalfAdded) {
   if (tick <= 45 + firstHalfAdded) return 45;
   return clamp(tick - firstHalfAdded, 45, 90);
 }
-function makeLineup(teamName, user, isUserTeam, seedText) {
-  const random = seededRandom(seedText);
-  const names = [...SAMPLE_NAMES].sort(() => random() - .5);
-  const squad = [];
-  let index = 0;
-  FORMATIONS.forEach(([position, count]) => {
-    for (let place = 0; place < count; place += 1) {
-      if (isUserTeam && position === "DEL" && place === 0) squad.push({ name: user?.name || "Jugador", position, number: user?.number || 9, isUser: true });
-      else squad.push({ name: names[index++], position, number: 1 + Math.floor(random() * 30), isUser: false });
-    }
+function makeLineup(teamName, user, isUserTeam, roster = []) {
+  const byPosition = { ARQ: [], DEF: [], MED: [], DEL: [] };
+  roster.forEach((player) => {
+    const rawPosition = player.position || "";
+    const position = /goalkeeper|keeper/i.test(rawPosition) ? "ARQ" : /defen/i.test(rawPosition) ? "DEF" : /midf|centrocamp/i.test(rawPosition) ? "MED" : /forward|offen|offenc|attacker|strik/i.test(rawPosition) ? "DEL" : "MED";
+    byPosition[position].push(player);
   });
-  return { teamName, players: squad };
+  const players = FORMATIONS.flatMap(([position, count]) => byPosition[position].slice(0, count).map((player) => ({ name: player.name, position, number: player.shirtNumber || "–", isUser: false })));
+  if (isUserTeam) {
+    const strikerIndex = players.findLastIndex((player) => player.position === "DEL");
+    if (strikerIndex >= 0) players.splice(strikerIndex, 1);
+    players.push({ name: user?.name || "Jugador", position: "DEL", number: user?.number || 9, isUser: true });
+  }
+  return { teamName, players };
 }
-function simulateMatch({ home, away, userTeam, playerName, tempo, seedText, energy, firstHalfAdded, secondHalfAdded }) {
+function simulateMatch({ home, away, userTeam, playerName, homeRoster, awayRoster, homeStarters, awayStarters, tempo, seedText, energy, firstHalfAdded, secondHalfAdded }) {
   const random = seededRandom(seedText);
   const events = [];
   let homeGoals = 0; let awayGoals = 0; let userGoals = 0; let userAssists = 0; let userShots = 0; let userRating = 6.2;
   const userSide = String(userTeam?.id) === String(home?.id) ? "home" : "away";
-  const opponents = ["Mateo Ríos", "Lautaro Vera", "Bruno Acosta", "Tomás Sosa", "Nicolás Díaz", "Franco Molina", "Julián Costa", "Thiago López", "Santino Pereyra", "Benjamín Suárez", "Valentín Romero"];
-  const teammates = [playerName, "Lautaro Vera", "Bruno Acosta", "Tomás Sosa", "Nicolás Díaz", "Franco Molina", "Julián Costa", "Thiago López", "Santino Pereyra", "Benjamín Suárez", "Valentín Romero"];
+  const namesFrom = (roster) => roster.map((player) => player.name).filter(Boolean);
+  let homeNames = namesFrom(homeStarters);
+  let awayNames = namesFrom(awayStarters);
+  const homeBench = namesFrom(homeRoster).filter((name) => !homeNames.includes(name));
+  const awayBench = namesFrom(awayRoster).filter((name) => !awayNames.includes(name));
+  const userOnHome = String(userTeam?.id) === String(home?.id);
+  const userSideNames = userOnHome ? homeNames : awayNames;
   const userChanceBoost = (tempo === "sacrificado" ? 1.55 : tempo === "competitivo" ? 1.22 : 1) * clamp(energy / 100, .45, 1);
   const duration = 90 + firstHalfAdded + secondHalfAdded;
   for (let tick = 1; tick <= duration; tick += 1) {
@@ -69,9 +75,11 @@ function simulateMatch({ home, away, userTeam, playerName, tempo, seedText, ener
       const minute = matchClockLabel(tick, firstHalfAdded);
       const side = random() < (userSide === "home" ? .52 : .48) ? "home" : "away";
       const ownTeam = side === "home" ? home : away;
-      const ownNames = side === userSide ? teammates : opponents;
-      let actor = ownNames[Math.floor(random() * ownNames.length)];
-      if (side === userSide && random() < clamp(.09 * userChanceBoost, .04, .24)) actor = playerName;
+      const ownNames = side === "home" ? homeNames : awayNames;
+      if (!ownNames.length) continue;
+      const actors = ownNames;
+      let actor = actors[Math.floor(random() * actors.length)];
+      if (side === userSide && ownNames.includes(playerName) && random() < clamp(.09 * userChanceBoost, .04, .24)) actor = playerName;
       const roll = random();
       let type; let message; let involved = [actor];
       if (roll < .42) {
@@ -81,8 +89,8 @@ function simulateMatch({ home, away, userTeam, playerName, tempo, seedText, ener
         type = "danger"; message = random() < .22 ? `${actor} estrella el remate en el palo.` : `${actor} saca un remate muy cercano que pasa junto al poste.`;
         if (actor === playerName) { userShots += 1; userRating += .25; }
       } else if (roll < .72) {
-        const scorer = side === userSide && random() < clamp(.25 * userChanceBoost, .12, .5) ? playerName : actor;
-        const assist = scorer === playerName ? ownNames.find((name) => name !== playerName) : (side === userSide && random() < .15 ? playerName : ownNames[Math.floor(random() * ownNames.length)]);
+        const scorer = side === userSide && ownNames.includes(playerName) && random() < clamp(.25 * userChanceBoost, .12, .5) ? playerName : actor;
+        const assist = scorer === playerName ? (userSideNames.find((name) => name !== playerName) || playerName) : (side === userSide && random() < .15 ? playerName : ownNames[Math.floor(random() * ownNames.length)]);
         type = "goal"; involved = [scorer, assist]; message = `${scorer} define tras una buena combinación. Asiste ${assist}.`;
         if (scorer === playerName) userShots += 1;
         if (side === "home") homeGoals += 1; else awayGoals += 1;
@@ -97,7 +105,11 @@ function simulateMatch({ home, away, userTeam, playerName, tempo, seedText, ener
       } else if (roll < .968) {
         type = "card"; const red = random() < .045; message = `${actor} recibe ${red ? "tarjeta roja" : "tarjeta amarilla"} por una falta ${red ? "a destiempo" : "en la disputa"}.`;
       } else {
-        type = "sub"; const outgoing = ownNames[Math.floor(random() * ownNames.length)]; const incoming = `${ownNames[Math.floor(random() * ownNames.length)]} (ingresa)`; involved = [outgoing, incoming]; message = `Cambio: ${incoming} reemplaza a ${outgoing}.`;
+        const bench = side === "home" ? homeBench : awayBench;
+        if (!bench.length) continue;
+        type = "sub"; const outgoing = ownNames[Math.floor(random() * ownNames.length)]; const incoming = bench.splice(Math.floor(random() * bench.length), 1)[0]; involved = [outgoing, incoming]; message = `Cambio: ${incoming} ingresa por ${outgoing}.`;
+        if (side === "home") homeNames = homeNames.map((name) => name === outgoing ? incoming : name);
+        else awayNames = awayNames.map((name) => name === outgoing ? incoming : name);
       }
       events.push({ minute, tick, scoreDelta: type === "goal" || (type === "penalty" && message.startsWith("Penal convertido")), side, team: ownTeam?.shortName || ownTeam?.name || (side === "home" ? "Local" : "Visitante"), type, message, involved });
     }
@@ -177,6 +189,9 @@ function fixturesFromBracket(rounds, playerTeam, start, idPrefix, competitionNam
 export default function CareerHomeScreen({ profile, screenPath = "/career", onNavigate = () => {}, onExit }) {
   const [section, setSection] = useState("home");
   const [leagueTeams, setLeagueTeams] = useState([]);
+  const [internationalTeams, setInternationalTeams] = useState([]);
+  const [homeRoster, setHomeRoster] = useState([]);
+  const [awayRoster, setAwayRoster] = useState([]);
   const [leagueTeamsLoading, setLeagueTeamsLoading] = useState(false);
   const [leagueTeamsError, setLeagueTeamsError] = useState("");
   const [calendarMonth, setCalendarMonth] = useState(() => new Date(seasonStartFor(profile).getFullYear(), seasonStartFor(profile).getMonth(), 1));
@@ -187,6 +202,8 @@ export default function CareerHomeScreen({ profile, screenPath = "/career", onNa
   const [matchSpeed, setMatchSpeed] = useState(1);
   const [matchTempo, setMatchTempo] = useState("regulado");
   const [matchEvents, setMatchEvents] = useState([]);
+  const [liveHomeXI, setLiveHomeXI] = useState(null);
+  const [liveAwayXI, setLiveAwayXI] = useState(null);
   const [matchProgress, setMatchProgress] = useState(0);
   const [matchMinute, setMatchMinute] = useState(0);
   const [activeMatchEvent, setActiveMatchEvent] = useState(null);
@@ -229,7 +246,7 @@ export default function CareerHomeScreen({ profile, screenPath = "/career", onNa
   const playerPosition = leagueTeams.findIndex((team) => String(team.id) === String(profile?.team?.id));
   const competitionOptions = [{ id: "league", label: leagueName }, { id: "cup", label: /argentina/i.test(profile?.league?.country || "") ? "Copa nacional" : "Copa doméstica" }, ...(playerPosition >= 0 && playerPosition < 4 ? [{ id: "international", label: "Copa internacional" }] : [])];
   const cupBracket = useMemo(() => makeKnockoutBracket(leagueTeams, profile?.team, 16, `${profile?.team?.id}-domestic-cup`), [leagueTeams, profile?.team?.id]);
-  const internationalBracket = useMemo(() => makeKnockoutBracket(leagueTeams.slice(0, playerPosition >= 0 && playerPosition < 4 ? 4 : 0), profile?.team, 4, `${profile?.team?.id}-international`), [leagueTeams, playerPosition, profile?.team?.id]);
+  const internationalBracket = useMemo(() => makeKnockoutBracket(internationalTeams, profile?.team, 16, `${profile?.team?.id}-international`), [internationalTeams, profile?.team?.id]);
   const nextMatch = matches.find((match) => competitionTone(match) === selectedCompetition) || matches[0];
   const selectedBracket = selectedCompetition === "international" ? internationalBracket : cupBracket;
   useEffect(() => {
@@ -249,17 +266,48 @@ export default function CareerHomeScreen({ profile, screenPath = "/career", onNa
     });
     const cupName = /argentina/i.test(profile.league?.country || "") ? "Copa nacional" : "Copa doméstica";
     const cupFixtures = fixturesFromBracket(cupBracket, profile.team, start, "cup", cupName, 50, 35);
-    const internationalFixtures = fixturesFromBracket(internationalBracket, profile.team, start, "international", "Copa internacional", 175, 35);
-    setMatches([...leagueFixtures, ...cupFixtures, ...internationalFixtures].sort((a, b) => new Date(a.utcDate) - new Date(b.utcDate)));
+    const internationalFixtures = fixturesFromBracket(internationalBracket, profile.team, start, "international", "Copa internacional", 175, 21);
+    const ordered = [...leagueFixtures, ...cupFixtures, ...internationalFixtures].sort((a, b) => new Date(a.utcDate) - new Date(b.utcDate));
+    let lastDay = null;
+    ordered.forEach((match) => {
+      const date = new Date(match.utcDate);
+      date.setHours(20, 0, 0, 0);
+      if (lastDay && (date - lastDay) / 86400000 < 2) date.setTime(lastDay.getTime() + 2 * 86400000);
+      match.utcDate = date.toISOString();
+      lastDay = date;
+    });
+    setMatches(ordered);
   }, [leagueTeams, profile?.team?.id, profile?.createdAt, profile?.league?.country, leagueName, cupBracket, internationalBracket]);
+  useEffect(() => {
+    let active = true;
+    fetch("/api/football/champions")
+      .then(async (response) => { const data = await response.json(); if (!response.ok) throw new Error(data.error || "No se pudieron cargar los clubes de Champions League."); return data; })
+      .then((data) => { if (active) setInternationalTeams(data.teams || []); })
+      .catch(() => { if (active) setInternationalTeams([]); });
+    return () => { active = false; };
+  }, []);
+  useEffect(() => {
+    const load = async (team, setter) => {
+      if (!team?.id || !/^\d+$/.test(String(team.id))) { setter([]); return; }
+      try {
+        const response = await fetch(`/api/football/team?teamId=${team.id}`);
+        const data = await response.json();
+        setter(response.ok ? (data.players || []) : []);
+      } catch { setter([]); }
+    };
+    load(nextMatch?.homeTeam, setHomeRoster);
+    load(nextMatch?.awayTeam, setAwayRoster);
+  }, [nextMatch?.homeTeam?.id, nextMatch?.awayTeam?.id]);
   function changeCalendarMonth(offset) {
     const nextMonth = new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() + offset, 1);
     setCalendarMonth(nextMonth);
     setSelectedDate(`${nextMonth.getFullYear()}-${String(nextMonth.getMonth() + 1).padStart(2, "0")}-01`);
   }
   const isUserHome = String(nextMatch?.homeTeam?.id) === String(profile?.team?.id);
-  const homeLineup = useMemo(() => makeLineup(nextMatch?.homeTeam?.name || clubName, profile, isUserHome, `${profile?.createdAt || "career"}-home`), [nextMatch?.homeTeam?.name, profile?.name, profile?.number, profile?.createdAt, isUserHome, clubName]);
-  const awayLineup = useMemo(() => makeLineup(nextMatch?.awayTeam?.name || "Rival", profile, !isUserHome, `${profile?.createdAt || "career"}-away`), [nextMatch?.awayTeam?.name, profile?.name, profile?.number, profile?.createdAt, isUserHome]);
+  const homeLineup = useMemo(() => makeLineup(nextMatch?.homeTeam?.name || clubName, profile, isUserHome, homeRoster), [nextMatch?.homeTeam?.name, profile?.name, profile?.number, isUserHome, clubName, homeRoster]);
+  const awayLineup = useMemo(() => makeLineup(nextMatch?.awayTeam?.name || "Rival", profile, !isUserHome, awayRoster), [nextMatch?.awayTeam?.name, profile?.name, profile?.number, isUserHome, awayRoster]);
+  const displayedHomeLineup = { ...homeLineup, players: liveHomeXI || homeLineup.players };
+  const displayedAwayLineup = { ...awayLineup, players: liveAwayXI || awayLineup.players };
   const liveMatchStats = useMemo(() => getLiveMatchStats(matchResult, matchEvents, matchProgress, regulationMinute(matchMinute, firstHalfAdded)), [matchResult, matchEvents, matchProgress, matchMinute, firstHalfAdded]);
   const matchDrain = matchTempo === "sacrificado" ? 35 : matchTempo === "competitivo" ? 24 : 15;
   const playerEnergy = matchMode === "simulation" ? clamp(energy - matchDrain * regulationMinute(matchMinute, firstHalfAdded) / 90, 0, 100) : energy;
@@ -302,6 +350,12 @@ export default function CareerHomeScreen({ profile, screenPath = "/career", onNa
         setActiveMatchEvent(event);
         setMatchProgress((current) => current + 1);
         if (event.scoreDelta) setLiveScore((score) => ({ ...score, [event.side]: score[event.side] + 1 }));
+        if (event.type === "sub" && event.involved?.length === 2) {
+          const [outgoing, incoming] = event.involved;
+          const updateXI = (lineup) => lineup.map((player) => player.name === outgoing ? { ...player, name: incoming, isUser: false } : player);
+          if (event.side === "home") setLiveHomeXI(updateXI);
+          else setLiveAwayXI(updateXI);
+        }
       }
     }, 1000 / matchSpeed);
     return () => clearTimeout(timer);
@@ -314,10 +368,12 @@ export default function CareerHomeScreen({ profile, screenPath = "/career", onNa
     const extraTimeRandom = seededRandom(`${seedText}-added-time`);
     const firstAdded = 1 + Math.floor(extraTimeRandom() * 4);
     const secondAdded = 2 + Math.floor(extraTimeRandom() * 4);
-    const result = simulateMatch({ home, away, userTeam: profile?.team, playerName: profile?.name || "Jugador", tempo: matchTempo, energy, seedText, firstHalfAdded: firstAdded, secondHalfAdded: secondAdded });
+    const startingHome = homeLineup.players;
+    const startingAway = awayLineup.players;
+    const result = simulateMatch({ home, away, userTeam: profile?.team, playerName: profile?.name || "Jugador", homeRoster, awayRoster, homeStarters: startingHome, awayStarters: startingAway, tempo: matchTempo, energy, seedText, firstHalfAdded: firstAdded, secondHalfAdded: secondAdded });
     followMatchEvents.current = true;
     setFirstHalfAdded(firstAdded); setSecondHalfAdded(secondAdded); setLiveScore({ home: 0, away: 0 }); setPaused(false); setHalftime(false); setHalftimeDone(false);
-    setMatchResult(result); setMatchEvents(result.events); setMatchProgress(0); setMatchMinute(0); setActiveMatchEvent(null); setMatchMode("simulation"); onNavigate("/match");
+    setLiveHomeXI(startingHome); setLiveAwayXI(startingAway); setMatchResult(result); setMatchEvents(result.events); setMatchProgress(0); setMatchMinute(0); setActiveMatchEvent(null); setMatchMode("simulation"); onNavigate("/match");
   }
 
   useEffect(() => {
@@ -372,7 +428,7 @@ export default function CareerHomeScreen({ profile, screenPath = "/career", onNa
           {matchMode === "preview" ? <><label>RITMO<select value={matchTempo} onChange={(event) => setMatchTempo(event.target.value)}><option value="regulado">Regulado</option><option value="competitivo">Competitivo</option><option value="sacrificado">Sacrificado</option></select></label><span className="tempo-note">{matchTempo === "regulado" ? "Menor desgaste · menos protagonismo" : matchTempo === "competitivo" ? "Rendimiento y desgaste equilibrados" : "Más ocasiones personales · mayor desgaste"}</span><button className="simulate-match-button" onClick={startMatch}>SIMULAR PARTIDO <b>▶</b></button></> : <><span className="live-label">{matchMode === "finished" ? "PARTIDO FINALIZADO" : paused ? "SIMULACIÓN PAUSADA" : `EN JUEGO · ${matchTempo.toUpperCase()}`}</span><div className="speed-control"><span>VELOCIDAD</span>{[1, 2, 3].map((speed) => <button key={speed} className={matchSpeed === speed ? "is-selected" : ""} onClick={() => setMatchSpeed(speed)}>x{speed}</button>)}{matchMode === "simulation" && !halftime && <button className="match-pause-button" onClick={() => setPaused((value) => !value)}>{paused ? "▶ CONTINUAR" : "Ⅱ PAUSAR"}</button>}</div></>}
         </div>
         <div className="matchday-layout">
-          {[homeLineup, awayLineup].map((lineup, teamIndex) => <aside className={`matchday-lineup ${teamIndex === 1 ? "matchday-lineup--away" : ""}`} key={lineup.teamName}><h3><span>{teamIndex === 0 ? "LOCAL" : "VISITANTE"}</span>{lineup.teamName}</h3>{FORMATIONS.map(([position]) => <section className="matchday-position" key={position}><b>{position === "ARQ" ? "ARQUEROS" : position === "DEF" ? "DEFENSORES" : position === "MED" ? "MEDIOCAMPISTAS" : "DELANTEROS"}</b>{lineup.players.filter((player) => player.position === position).map((player) => <div className={`matchday-player ${player.isUser ? "is-user-player" : ""}`} key={`${player.number}-${player.name}`}><span>{player.number}</span><strong>{player.name}</strong>{player.isUser && <em>TÚ</em>}</div>)}</section>)}</aside>)}
+          {[displayedHomeLineup, displayedAwayLineup].map((lineup, teamIndex) => <aside className={`matchday-lineup ${teamIndex === 1 ? "matchday-lineup--away" : ""}`} key={lineup.teamName}><h3><span>{teamIndex === 0 ? "LOCAL" : "VISITANTE"}</span>{lineup.teamName}</h3>{FORMATIONS.map(([position]) => <section className="matchday-position" key={position}><b>{position === "ARQ" ? "ARQUEROS" : position === "DEF" ? "DEFENSORES" : position === "MED" ? "MEDIOCAMPISTAS" : "DELANTEROS"}</b>{lineup.players.filter((player) => player.position === position).map((player) => <div className={`matchday-player ${player.isUser ? "is-user-player" : ""}`} key={`${player.number}-${player.name}`}><span>{player.number}</span><strong>{player.name}</strong>{player.isUser && <em>TÚ</em>}</div>)}</section>)}</aside>)}
           <section className="matchday-pitch" aria-label="Relato de jugadas sobre la cancha"><div className="matchday-pitch-lines"><i className="pitch-box pitch-box--left"/><i className="pitch-box pitch-box--right"/><i className="pitch-midline"/></div><div className="matchday-feed" ref={matchdayFeedRef} onScroll={(event) => { const feed = event.currentTarget; followMatchEvents.current = feed.scrollHeight - feed.scrollTop - feed.clientHeight < 60; }} aria-live="polite">{matchMode === "preview" ? <div className="feed-intro"><b>TODO LISTO PARA EL PARTIDO</b><span>Las jugadas aparecerán acá durante la simulación.</span></div> : <><div className="matchday-minute-marker">{matchMode === "finished" ? "FINAL DEL PARTIDO" : <>MINUTO <strong>{matchClockLabel(matchMinute, firstHalfAdded)}</strong> · {paused ? "PAUSADO" : matchMode === "simulation" ? "EN JUEGO" : "FINAL"}</>}</div>{matchEvents.slice(0, matchProgress).map((event) => <div className={`matchday-event matchday-event--${event.side} matchday-event--${event.type}`} key={`${event.minute}-${event.type}`}><b>{event.minute}</b><span><strong>{event.team}</strong>{event.message}</span></div>)}{matchMode === "simulation" && matchProgress === 0 && <div className="feed-intro">El árbitro está por dar inicio…</div>}</>}</div>          {activeMatchEvent && <div className="matchday-event-overlay" role="status" aria-live="assertive"><article key={`${activeMatchEvent.tick}-${activeMatchEvent.type}`} className={`matchday-event-banner matchday-event-banner--${activeMatchEvent.type} ${activeMatchEvent.side === "away" ? "is-away" : ""}`}><span className="event-banner-icon">{activeMatchEvent.type === "goal" ? "⚽" : activeMatchEvent.type === "card" ? "▰" : activeMatchEvent.type === "penalty" ? "◉" : activeMatchEvent.type === "sub" ? "↔" : activeMatchEvent.type === "shot" ? "➤" : "!"}</span><small>{activeMatchEvent.minute} · {activeMatchEvent.team}</small><b>{activeMatchEvent.type === "goal" ? "¡GOOOL!" : activeMatchEvent.type === "card" ? (activeMatchEvent.message.includes("roja") ? "TARJETA ROJA" : "TARJETA AMARILLA") : activeMatchEvent.type === "penalty" ? "PENAL" : activeMatchEvent.type === "sub" ? "SUSTITUCIÓN" : activeMatchEvent.type === "foul" ? "FALTA" : activeMatchEvent.type === "shot" ? "REMATE" : "¡OCASIÓN PELIGROSA!"}</b><p>{activeMatchEvent.message}</p></article></div>}</section>
 
           {halftime && <div className="matchday-intermission-overlay"><section><span>DESCANSO</span><h2>{homeLineup.teamName} <b>{liveScore.home} – {liveScore.away}</b> {awayLineup.teamName}</h2><p>Fin del primer tiempo · {firstHalfAdded}′ de tiempo añadido</p><button onClick={() => { setHalftimeDone(true); setHalftime(false); }}>COMENZAR SEGUNDO TIEMPO <b>→</b></button></section></div>}

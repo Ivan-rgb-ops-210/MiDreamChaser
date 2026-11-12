@@ -50,7 +50,7 @@ export default {
   const numericId = (value) => /^\d+$/.test(value || "");
   const competitionId = (value) => /^[A-Za-z0-9]{2,10}$/.test(value || "");
 
-  if (!["leagues", "nationalities", "team", "player", "competition", "matches"].includes(route)) {
+  if (!["leagues", "nationalities", "team", "player", "competition", "matches", "champions"].includes(route)) {
     return json({ error: "Ruta no encontrada." }, 404);
   }
   if ((route === "team" && !numericId(teamId)) || (route === "player" && !numericId(playerId)) || (["competition", "matches"].includes(route) && !competitionId(leagueId))) {
@@ -117,6 +117,14 @@ export default {
       const nationalities = [...unique.values()].sort((a, b) => a.name.localeCompare(b.name, "es"));
       const data = { nationalities, meta: { count: nationalities.length } };
       cache.set(cacheKey, { data, cachedAt: Date.now() });
+      return json(data);
+    }
+
+    if (route === "champions") {
+      const response = await fetchFootballData("/competitions/CL/teams", apiKey);
+      const teams = (response.teams || []).map((team) => ({ id: team.id, name: team.name, shortName: team.shortName || team.name, tla: team.tla || "", crest: team.crest || "" }));
+      const data = { teams };
+      cache.set("champions", { data, cachedAt: Date.now() });
       return json(data);
     }
 

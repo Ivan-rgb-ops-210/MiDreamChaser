@@ -86,6 +86,15 @@ function footballDataOrgApi(apiKey) {
         return;
       }
 
+      if (route === "champions") {
+        const response = await get("/competitions/CL/teams");
+        const teams = (response.teams || []).map((team) => ({ id: team.id, name: team.name, shortName: team.shortName || team.name, tla: team.tla || "", crest: team.crest || "" }));
+        const data = { teams };
+        cache.set("champions", { data, cachedAt: Date.now() });
+        res.end(JSON.stringify(data));
+        return;
+      }
+
       if (route === "team") {
         const team = await get(`/teams/${teamId}`);
         const players = (team.squad || []).map((player) => ({ ...player, player_id: player.id, player_name: player.name, position: player.position || "", nationality: player.nationality || "" }));
@@ -155,6 +164,7 @@ function footballDataOrgApi(apiKey) {
     configureServer(server) {
       server.middlewares.use("/api/football/leagues", (req, res, next) => middleware(req, res, next, "leagues"));
       server.middlewares.use("/api/football/nationalities", (req, res, next) => middleware(req, res, next, "nationalities"));
+      server.middlewares.use("/api/football/champions", (req, res, next) => middleware(req, res, next, "champions"));
       server.middlewares.use("/api/football/team", (req, res, next) => middleware(req, res, next, "team"));
       server.middlewares.use("/api/football/player", (req, res, next) => middleware(req, res, next, "player"));
       server.middlewares.use("/api/football/competition", middleware);
@@ -162,6 +172,7 @@ function footballDataOrgApi(apiKey) {
     configurePreviewServer(server) {
       server.middlewares.use("/api/football/leagues", (req, res, next) => middleware(req, res, next, "leagues"));
       server.middlewares.use("/api/football/nationalities", (req, res, next) => middleware(req, res, next, "nationalities"));
+      server.middlewares.use("/api/football/champions", (req, res, next) => middleware(req, res, next, "champions"));
       server.middlewares.use("/api/football/team", (req, res, next) => middleware(req, res, next, "team"));
       server.middlewares.use("/api/football/player", (req, res, next) => middleware(req, res, next, "player"));
       server.middlewares.use("/api/football/competition", middleware);
