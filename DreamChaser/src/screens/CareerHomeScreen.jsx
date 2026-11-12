@@ -24,6 +24,11 @@ const seasonStartFor = (profile, reference = new Date()) => {
   return new Date(year, startMonth, day);
 };
 const competitionTone = (match) => match.id?.startsWith("international-") ? "international" : match.id?.startsWith("cup-") ? "cup" : "league";
+const fixtureOutcome = (match, teamId) => {
+  if (match.status !== "FINISHED") return "upcoming";
+  if (match.homeScore === match.awayScore) return "draw";
+  return (String(match.homeTeam?.id) === String(teamId) ? match.homeScore > match.awayScore : match.awayScore > match.homeScore) ? "win" : "loss";
+};
 const FORMATIONS = [["ARQ", 1], ["DEF", 4], ["MED", 3], ["DEL", 3]];
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 function seededRandom(seedText) {
@@ -185,6 +190,23 @@ function fixturesFromBracket(rounds, playerTeam, start, idPrefix, competitionNam
     return [{ id: `${idPrefix}-${index}`, utcDate: date.toISOString(), status: "SCHEDULED", competitionName, homeTeam: toClub(tie.home, "home"), awayTeam: toClub(tie.away, "away"), homeScore: null, awayScore: null, roundName: round.label }];
   });
 }
+function emptyStanding(team) { return { team, played: 0, won: 0, drawn: 0, lost: 0, goalsFor: 0, goalsAgainst: 0, points: 0 }; }
+function applyFixtureResult(table, match) {
+  const home = table.get(String(match.homeTeam.id)); const away = table.get(String(match.awayTeam.id));
+  if (!home || !away || !Number.isFinite(match.homeScore) || !Number.isFinite(match.awayScore)) return;
+  home.played += 1; away.played += 1; home.goalsFor += match.homeScore; home.goalsAgainst += match.awayScore; away.goalsFor += match.awayScore; away.goalsAgainst += match.homeScore;
+  if (match.homeScore > match.awayScore) { home.won += 1; away.lost += 1; home.points += 3; }
+  else if (match.homeScore < match.awayScore) { away.won += 1; home.lost += 1; away.points += 3; }
+  else { home.drawn += 1; away.drawn += 1; home.points += 1; away.points += 1; }
+}
+function simulateOtherFixture(match) {
+  const random = seededRandom(`fixture:${match.id}`);
+  const goals = (strength, home) => { const chance = Math.max(.15, Math.min(.8, .37 + (strength - 70) * .009 + (home ? .07 : 0))); let count = 0; for (let i = 0; i < 7; i += 1) if (random() < chance / (i + 1)) count += 1; return Math.min(count, 6); };
+  const homeScore = goals(Number(match.homeTeam.strength) || 70, true); const awayScore = goals(Number(match.awayTeam.strength) || 70, false);
+  const names = ["Lucas González", "Mateo Fernández", "Tomás Rodríguez", "Santiago López", "Julián Romero", "Nicolás Martínez", "Franco Herrera", "Bruno Díaz", "Thiago Castro", "Valentín Acosta", "Lautaro Silva", "Benjamín Torres"];
+  const scorerNames = (team, count) => Array.from({ length: count }, () => ({ team: team.shortName || team.name, player: names[Math.floor(random() * names.length)], minute: 1 + Math.floor(random() * 90) })).sort((a, b) => a.minute - b.minute);
+  return { ...match, status: "FINISHED", homeScore, awayScore, scorers: [...scorerNames(match.homeTeam, homeScore), ...scorerNames(match.awayTeam, awayScore)].sort((a, b) => a.minute - b.minute) };
+}
 
 export default function CareerHomeScreen({ profile, screenPath = "/career", onNavigate = () => {}, onExit }) {
   const [section, setSection] = useState("home");
@@ -196,6 +218,8 @@ export default function CareerHomeScreen({ profile, screenPath = "/career", onNa
   const [leagueTeamsError, setLeagueTeamsError] = useState("");
   const [calendarMonth, setCalendarMonth] = useState(() => new Date(seasonStartFor(profile).getFullYear(), seasonStartFor(profile).getMonth(), 1));
   const [matches, setMatches] = useState([]);
+  const resultsKey = `dreamchaser.results.v2.${profile?.createdAt || profile?.team?.id || profile?.name || "career"}`;
+  const [savedResults, setSavedResults] = useState(() => { try { return JSON.parse(localStorage.getItem(resultsKey) || "{}"); } catch { return {}; } });
   const [selectedCompetition, setSelectedCompetition] = useState("league");
   const [selectedDate, setSelectedDate] = useState(() => localDateKey(seasonStartFor(profile)));
   const [matchMode, setMatchMode] = useState("preview");
@@ -238,16 +262,23 @@ export default function CareerHomeScreen({ profile, screenPath = "/career", onNa
     return days;
   }, [calendarMonth]);
   const matchesByDate = useMemo(() => matches.reduce((groups, match) => {
+    if (![match.homeTeam, match.awayTeam].some((team) => String(team.id) === String(profile?.team?.id))) return groups;
     const key = match.utcDate ? localDateKey(match.utcDate) : "";
     if (key) (groups[key] ||= []).push(match);
     return groups;
-  }, {}), [matches]);
+  }, {}), [matches, profile?.team?.id]);
   const selectedMatches = matchesByDate[selectedDate] || [];
+  const leagueStandings = useMemo(() => {
+    const table = new Map(leagueTeams.map((team) => [String(team.id), emptyStanding(team)]));
+    matches.filter((match) => competitionTone(match) === "league").forEach((match) => applyFixtureResult(table, match));
+    return [...table.values()].sort((a, b) => b.points - a.points || (b.goalsFor - b.goalsAgainst) - (a.goalsFor - a.goalsAgainst) || b.goalsFor - a.goalsFor || a.team.name.localeCompare(b.team.name));
+  }, [leagueTeams, matches]);
   const playerPosition = leagueTeams.findIndex((team) => String(team.id) === String(profile?.team?.id));
   const competitionOptions = [{ id: "league", label: leagueName }, { id: "cup", label: /argentina/i.test(profile?.league?.country || "") ? "Copa nacional" : "Copa doméstica" }, ...(playerPosition >= 0 && playerPosition < 4 ? [{ id: "international", label: "Copa internacional" }] : [])];
   const cupBracket = useMemo(() => makeKnockoutBracket(leagueTeams, profile?.team, 16, `${profile?.team?.id}-domestic-cup`), [leagueTeams, profile?.team?.id]);
   const internationalBracket = useMemo(() => makeKnockoutBracket(internationalTeams, profile?.team, 16, `${profile?.team?.id}-international`), [internationalTeams, profile?.team?.id]);
-  const nextMatch = matches.find((match) => competitionTone(match) === selectedCompetition) || matches[0];
+  const nextMatch = matches.find((match) => match.status !== "FINISHED" && [match.homeTeam, match.awayTeam].some((team) => String(team.id) === String(profile?.team?.id))) || matches.find((match) => [match.homeTeam, match.awayTeam].some((team) => String(team.id) === String(profile?.team?.id))) || matches[0];
+  const currentMatch = (matchMode === "finished" || matchMode === "summary") && matchResult?.matchId ? matches.find((match) => match.id === matchResult.matchId) || nextMatch : nextMatch;
   const selectedBracket = selectedCompetition === "international" ? internationalBracket : cupBracket;
   useEffect(() => {
     if (!leagueTeams.length || !profile?.team?.id) return;
@@ -256,28 +287,32 @@ export default function CareerHomeScreen({ profile, screenPath = "/career", onNa
     const start = seasonStartFor(profile);
     let seed = [...`${profile.team.id}-${profile.createdAt || "career"}`].reduce((sum, char) => (sum * 31 + char.charCodeAt(0)) >>> 0, 7);
     const random = () => { seed = (seed * 1664525 + 1013904223) >>> 0; return seed / 4294967296; };
-    const opponents = leagueTeams.filter((_, index) => index !== playerIndex).sort(() => random() - 0.5);
-    const leagueFixtures = [...opponents, ...opponents.slice().reverse()].map((opponent, index) => {
+    const entrants = [...leagueTeams].sort(() => random() - .5);
+    if (entrants.length % 2) entrants.push(null);
+    const rounds = [];
+    for (let round = 0; round < entrants.length - 1; round += 1) {
+      const fixtures = [];
+      for (let pair = 0; pair < entrants.length / 2; pair += 1) {
+        let home = entrants[pair]; let away = entrants[entrants.length - 1 - pair];
+        if (!home || !away) continue;
+        if ((round + pair) % 2) [home, away] = [away, home];
+        fixtures.push({ homeTeam: home, awayTeam: away });
+      }
+      rounds.push(fixtures);
+      entrants.splice(1, 0, entrants.pop());
+    }
+    const leagueFixtures = [...rounds, ...rounds.map((round) => round.map(({ homeTeam, awayTeam }) => ({ homeTeam: awayTeam, awayTeam: homeTeam })))].flatMap((round, roundIndex) => {
       const date = new Date(start);
-      date.setDate(start.getDate() + index * 7 + Math.floor(random() * 2));
+      date.setDate(start.getDate() + roundIndex * 7);
       date.setHours(19 + Math.floor(random() * 3), random() < .5 ? 0 : 30, 0, 0);
-      const home = index % 2 === (index < opponents.length ? 0 : 1);
-      return { id: `career-${index}`, utcDate: date.toISOString(), status: "SCHEDULED", competitionName: leagueName, homeTeam: home ? profile.team : opponent, awayTeam: home ? opponent : profile.team, homeScore: null, awayScore: null };
+      return round.map(({ homeTeam, awayTeam }, fixtureIndex) => ({ id: `career-${roundIndex}-${fixtureIndex}`, matchday: roundIndex + 1, utcDate: date.toISOString(), status: "SCHEDULED", competitionName: leagueName, homeTeam, awayTeam, homeScore: null, awayScore: null }));
     });
     const cupName = /argentina/i.test(profile.league?.country || "") ? "Copa nacional" : "Copa doméstica";
     const cupFixtures = fixturesFromBracket(cupBracket, profile.team, start, "cup", cupName, 50, 35);
     const internationalFixtures = fixturesFromBracket(internationalBracket, profile.team, start, "international", "Copa internacional", 175, 21);
     const ordered = [...leagueFixtures, ...cupFixtures, ...internationalFixtures].sort((a, b) => new Date(a.utcDate) - new Date(b.utcDate));
-    let lastDay = null;
-    ordered.forEach((match) => {
-      const date = new Date(match.utcDate);
-      date.setHours(20, 0, 0, 0);
-      if (lastDay && (date - lastDay) / 86400000 < 2) date.setTime(lastDay.getTime() + 2 * 86400000);
-      match.utcDate = date.toISOString();
-      lastDay = date;
-    });
-    setMatches(ordered);
-  }, [leagueTeams, profile?.team?.id, profile?.createdAt, profile?.league?.country, leagueName, cupBracket, internationalBracket]);
+    setMatches(ordered.map((match) => savedResults[match.id] ? { ...match, ...savedResults[match.id] } : match));
+  }, [leagueTeams, profile?.team?.id, profile?.createdAt, profile?.league?.country, leagueName, cupBracket, internationalBracket, savedResults]);
   useEffect(() => {
     let active = true;
     fetch("/api/football/champions")
@@ -303,9 +338,9 @@ export default function CareerHomeScreen({ profile, screenPath = "/career", onNa
     setCalendarMonth(nextMonth);
     setSelectedDate(`${nextMonth.getFullYear()}-${String(nextMonth.getMonth() + 1).padStart(2, "0")}-01`);
   }
-  const isUserHome = String(nextMatch?.homeTeam?.id) === String(profile?.team?.id);
-  const homeLineup = useMemo(() => makeLineup(nextMatch?.homeTeam?.name || clubName, profile, isUserHome, homeRoster), [nextMatch?.homeTeam?.name, profile?.name, profile?.number, isUserHome, clubName, homeRoster]);
-  const awayLineup = useMemo(() => makeLineup(nextMatch?.awayTeam?.name || "Rival", profile, !isUserHome, awayRoster), [nextMatch?.awayTeam?.name, profile?.name, profile?.number, isUserHome, awayRoster]);
+  const isUserHome = String(currentMatch?.homeTeam?.id) === String(profile?.team?.id);
+  const homeLineup = useMemo(() => makeLineup(currentMatch?.homeTeam?.name || clubName, profile, isUserHome, homeRoster), [currentMatch?.id, currentMatch?.homeTeam?.name, profile?.name, profile?.number, isUserHome, clubName, homeRoster]);
+  const awayLineup = useMemo(() => makeLineup(currentMatch?.awayTeam?.name || "Rival", profile, !isUserHome, awayRoster), [currentMatch?.id, currentMatch?.awayTeam?.name, profile?.name, profile?.number, isUserHome, awayRoster]);
   const displayedHomeLineup = { ...homeLineup, players: liveHomeXI || homeLineup.players };
   const displayedAwayLineup = { ...awayLineup, players: liveAwayXI || awayLineup.players };
   const liveMatchStats = useMemo(() => getLiveMatchStats(matchResult, matchEvents, matchProgress, regulationMinute(matchMinute, firstHalfAdded)), [matchResult, matchEvents, matchProgress, matchMinute, firstHalfAdded]);
@@ -316,6 +351,18 @@ export default function CareerHomeScreen({ profile, screenPath = "/career", onNa
     if (feed && followMatchEvents.current) feed.scrollTop = feed.scrollHeight;
   }, [matchProgress, matchMinute, activeMatchEvent, matchMode]);
   useEffect(() => { try { localStorage.setItem(energyKey, String(energy)); } catch { /* Storage can be unavailable in private browsing. */ } }, [energy, energyKey]);
+  useEffect(() => { try { localStorage.setItem(resultsKey, JSON.stringify(savedResults)); } catch { /* Storage can be unavailable in private browsing. */ } }, [resultsKey, savedResults]);
+  useEffect(() => {
+    const playedMatchId = matchResult?.matchId;
+    const playedMatch = matches.find((match) => match.id === playedMatchId);
+    if (matchMode !== "finished" || !playedMatch || !playedMatchId || savedResults[playedMatchId]) return;
+    const result = { status: "FINISHED", homeScore: matchResult?.homeGoals || 0, awayScore: matchResult?.awayGoals || 0, scorers: (matchResult?.events || []).filter((event) => event.scoreDelta).map((event) => ({ minute: event.minute, team: event.team, names: event.involved })) };
+    const updated = { ...savedResults, [playedMatchId]: result };
+    const sameDay = matches.filter((match) => match.id !== playedMatchId && match.matchday === playedMatch.matchday && competitionTone(match) === "league" && !updated[match.id]);
+    sameDay.forEach((match) => { updated[match.id] = simulateOtherFixture(match); });
+    setSavedResults(updated);
+    setMatches((current) => current.map((match) => updated[match.id] ? { ...match, ...updated[match.id] } : match));
+  }, [matchMode, matchResult, matches, savedResults]);
   useEffect(() => { if (screenPath === "/match-summary" && !matchResult) onNavigate("/career", { replace: true }); }, [screenPath, matchResult, onNavigate]);
   useEffect(() => {
     if (matchMode !== "summary") return undefined;
@@ -370,7 +417,7 @@ export default function CareerHomeScreen({ profile, screenPath = "/career", onNa
     const secondAdded = 2 + Math.floor(extraTimeRandom() * 4);
     const startingHome = homeLineup.players;
     const startingAway = awayLineup.players;
-    const result = simulateMatch({ home, away, userTeam: profile?.team, playerName: profile?.name || "Jugador", homeRoster, awayRoster, homeStarters: startingHome, awayStarters: startingAway, tempo: matchTempo, energy, seedText, firstHalfAdded: firstAdded, secondHalfAdded: secondAdded });
+    const result = { ...simulateMatch({ home, away, userTeam: profile?.team, playerName: profile?.name || "Jugador", homeRoster, awayRoster, homeStarters: startingHome, awayStarters: startingAway, tempo: matchTempo, energy, seedText, firstHalfAdded: firstAdded, secondHalfAdded: secondAdded }), matchId: nextMatch?.id };
     followMatchEvents.current = true;
     setFirstHalfAdded(firstAdded); setSecondHalfAdded(secondAdded); setLiveScore({ home: 0, away: 0 }); setPaused(false); setHalftime(false); setHalftimeDone(false);
     setLiveHomeXI(startingHome); setLiveAwayXI(startingAway); setMatchResult(result); setMatchEvents(result.events); setMatchProgress(0); setMatchMinute(0); setActiveMatchEvent(null); setMatchMode("simulation"); onNavigate("/match");
@@ -411,18 +458,18 @@ export default function CareerHomeScreen({ profile, screenPath = "/career", onNa
           </button>
           <article className="career-empty-feature career-lower-empty" aria-label="Espacio reservado"><span>DC</span></article>
         </div>
-        <article className={`career-table-panel career-table-feature ${selectedCompetition !== "league" ? "is-hidden" : ""}`}><div className="panel-kicker"><span>02</span> TABLA DE {leagueName.toUpperCase()} <b>TODO EN CERO</b></div><div className="table-head career-zero-head"><span>#</span><span>CLUB</span><span>PJ</span><span>G</span><span>E</span><span>P</span><span>GF</span><span>GC</span><span>DG</span><span>PTS</span></div><div className="career-standings-list">{leagueTeamsLoading ? <div className="table-empty"><p>Cargando clubes…</p></div> : leagueTeamsError ? <div className="table-empty"><p>{leagueTeamsError}</p></div> : leagueTeams.length ? leagueTeams.map((team, index) => <div className={String(team.id) === String(profile?.team?.id) ? "zero-standing-row is-player-team" : "zero-standing-row"} key={team.id || team.name}><span>{index + 1}</span><span className="standing-team">{team.crest && <img src={team.crest} alt="" />}<b>{team.shortName || team.name}</b></span>{Array.from({ length: 8 }, (_, column) => <span className="zero-stat" key={column}>0</span>)}</div>) : <div className="table-empty"><p>No hay clubes disponibles para mostrar.<small>Revisá la conexión con la API de la liga.</small></p></div>}</div><div className="table-foot"><span>{leagueTeams.length} CLUBES</span><span>CLASIFICACIÓN INICIAL</span></div></article>
+        <article className={`career-table-panel career-table-feature ${selectedCompetition !== "league" ? "is-hidden" : ""}`}><div className="panel-kicker"><span>02</span> TABLA DE {leagueName.toUpperCase()} <b>CLASIFICACIÓN EN VIVO</b></div><div className="table-head career-zero-head"><span>#</span><span>CLUB</span><span>PJ</span><span>G</span><span>E</span><span>P</span><span>GF</span><span>GC</span><span>DG</span><span>PTS</span></div><div className="career-standings-list">{leagueTeamsLoading ? <div className="table-empty"><p>Cargando clubes…</p></div> : leagueTeamsError ? <div className="table-empty"><p>{leagueTeamsError}</p></div> : leagueStandings.length ? leagueStandings.map((row, index) => <div className={String(row.team.id) === String(profile?.team?.id) ? "zero-standing-row is-player-team" : "zero-standing-row"} key={row.team.id || row.team.name}><span>{index + 1}</span><span className="standing-team">{row.team.crest && <img src={row.team.crest} alt="" />}<b>{row.team.shortName || row.team.name}</b></span>{[row.played,row.won,row.drawn,row.lost,row.goalsFor,row.goalsAgainst,row.goalsFor-row.goalsAgainst,row.points].map((value, column) => <span className="zero-stat" key={column}>{value}</span>)}</div>) : <div className="table-empty"><p>No hay clubes disponibles para mostrar.<small>Revisá la conexión con la API de la liga.</small></p></div>}</div><div className="table-foot"><span>{leagueTeams.length} CLUBES</span><span>SE ACTUALIZA AL FINALIZAR CADA PARTIDO</span></div></article>
         {selectedCompetition !== "league" && <article className={`career-cup-bracket career-cup-bracket--${selectedCompetition}`}><div className="panel-kicker"><span>02</span> CUADRO · {competitionOptions.find((item) => item.id === selectedCompetition)?.label.toUpperCase()} <b>{selectedBracket.length ? "ELIMINACIÓN DIRECTA" : "EN PREPARACIÓN"}</b></div>{selectedBracket.length ? <div className="cup-bracket-rounds">{selectedBracket.map((round, roundIndex) => <section className="cup-round" key={`${round.label}-${roundIndex}`}><h3>{round.label}<small>RONDA {roundIndex + 1}</small></h3>{round.matches.map((match, matchIndex) => { const playerTie = [match.home, match.away].some((team) => String(team.id) === String(profile?.team?.id)); return <div className={`cup-tie ${playerTie ? "is-player-tie" : ""}`} key={`${roundIndex}-${matchIndex}`}><span>{match.home.shortName || match.home.name}</span><i>vs</i><span>{match.away.shortName || match.away.name}</span></div>; })}</section>)}</div> : <div className="cup-bracket-empty">{leagueTeamsLoading ? "Cargando cuadro…" : selectedCompetition === "cup" ? "El cuadro estará disponible cuando se carguen los equipos." : "Esta carrera no clasificó a la copa internacional."}</div>}<div className="table-foot"><span>{selectedCompetition === "international" ? "CLASIFICACIÓN SEGÚN PUESTO DE LIGA" : "SORTEO DE TEMPORADA"}</span><span>CAMINO DEL EQUIPO RESALTADO</span></div></article>}
       </div>
       <footer className="career-footer"><span>UNA CARRERA. INFINITAS HISTORIAS.</span><span>GUARDADO EN LA NUBE <i>●</i></span></footer>
     </section> : visibleSection === "play" ? <section className="career-home-content career-section-view">
-      <div className="career-heading"><div><span className="career-eyebrow">MODO CARRERA · {clubName.toUpperCase()}</span><h1>DÍA DE PARTIDO</h1><p>{nextMatch?.competitionName || leagueName} · Temporada {seasonLabel}</p></div></div>
+      <div className="career-heading"><div><span className="career-eyebrow">MODO CARRERA · {clubName.toUpperCase()}</span><h1>DÍA DE PARTIDO</h1><p>{currentMatch?.competitionName || leagueName} · Temporada {seasonLabel}</p></div></div>
       <article className={`matchday-board ${matchMode === "summary" ? "is-summary-screen" : ""}`}>
         <header className="matchday-scoreboard">
-          <div className="matchday-club matchday-club--home">{nextMatch?.homeTeam?.crest ? <img src={nextMatch.homeTeam.crest} alt="" /> : <span>{homeLineup.teamName.slice(0, 2).toUpperCase()}</span>}<b>{homeLineup.teamName}</b></div>
+          <div className="matchday-club matchday-club--home">{currentMatch?.homeTeam?.crest ? <img src={currentMatch.homeTeam.crest} alt="" /> : <span>{homeLineup.teamName.slice(0, 2).toUpperCase()}</span>}<b>{homeLineup.teamName}</b></div>
           <div className="matchday-score"><strong>{matchMode === "preview" ? "·" : liveScore.home}</strong><i>–</i><strong>{matchMode === "preview" ? "·" : liveScore.away}</strong><small className={matchMode === "simulation" ? "is-live-minute" : ""}>{matchMode === "preview" ? "PRÓXIMO PARTIDO" : matchMode === "finished" || matchMode === "summary" ? "FINAL" : matchClockLabel(matchMinute, firstHalfAdded)}</small></div>
-          <div className="matchday-club matchday-club--away">{nextMatch?.awayTeam?.crest ? <img src={nextMatch.awayTeam.crest} alt="" /> : <span>{awayLineup.teamName.slice(0, 2).toUpperCase()}</span>}<b>{awayLineup.teamName}</b></div>
-          <p>{nextMatch?.competitionName || leagueName} · {nextMatch ? new Intl.DateTimeFormat("es-AR", { weekday: "long", day: "numeric", month: "long" }).format(new Date(nextMatch.utcDate)) : "TEMPORADA"}</p>
+          <div className="matchday-club matchday-club--away">{currentMatch?.awayTeam?.crest ? <img src={currentMatch.awayTeam.crest} alt="" /> : <span>{awayLineup.teamName.slice(0, 2).toUpperCase()}</span>}<b>{awayLineup.teamName}</b></div>
+          <p>{currentMatch?.competitionName || leagueName} · {currentMatch ? new Intl.DateTimeFormat("es-AR", { weekday: "long", day: "numeric", month: "long" }).format(new Date(currentMatch.utcDate)) : "TEMPORADA"}</p>
         </header>
         <div className="matchday-controls">
           {matchMode === "preview" ? <><label>RITMO<select value={matchTempo} onChange={(event) => setMatchTempo(event.target.value)}><option value="regulado">Regulado</option><option value="competitivo">Competitivo</option><option value="sacrificado">Sacrificado</option></select></label><span className="tempo-note">{matchTempo === "regulado" ? "Menor desgaste · menos protagonismo" : matchTempo === "competitivo" ? "Rendimiento y desgaste equilibrados" : "Más ocasiones personales · mayor desgaste"}</span><button className="simulate-match-button" onClick={startMatch}>SIMULAR PARTIDO <b>▶</b></button></> : <><span className="live-label">{matchMode === "finished" ? "PARTIDO FINALIZADO" : paused ? "SIMULACIÓN PAUSADA" : `EN JUEGO · ${matchTempo.toUpperCase()}`}</span><div className="speed-control"><span>VELOCIDAD</span>{[1, 2, 3].map((speed) => <button key={speed} className={matchSpeed === speed ? "is-selected" : ""} onClick={() => setMatchSpeed(speed)}>x{speed}</button>)}{matchMode === "simulation" && !halftime && <button className="match-pause-button" onClick={() => setPaused((value) => !value)}>{paused ? "▶ CONTINUAR" : "Ⅱ PAUSAR"}</button>}</div></>}
@@ -454,7 +501,7 @@ export default function CareerHomeScreen({ profile, screenPath = "/career", onNa
               const dayMatches = matchesByDate[key] || [];
               return <button type="button" key={key} className={`calendar-day ${inMonth ? "" : "is-outside"} ${key === selectedDate ? "is-selected" : ""} ${dayMatches.length ? "has-match" : ""} ${[...new Set(dayMatches.map(competitionTone))].map((tone) => `has-${tone}`).join(" ")}`} onClick={() => setSelectedDate(key)}>
                 <span className="calendar-day-number">{date.getDate()}</span>
-                {dayMatches.slice(0, 2).map((match) => <span className={`calendar-fixture calendar-fixture--${competitionTone(match)}`} key={match.id}><span className="fixture-crests">{match.homeTeam.crest ? <img src={match.homeTeam.crest} alt="" /> : <i>{match.homeTeam.tla || "L"}</i>}{match.awayTeam.crest ? <img src={match.awayTeam.crest} alt="" /> : <i>{match.awayTeam.tla || "V"}</i>}</span><span className="fixture-info"><b>{match.homeTeam.shortName} <em>{match.homeScore ?? "·"}–{match.awayScore ?? "·"} {match.awayTeam.shortName}</em></b><small>{match.competitionName || "LIGA"}</small></span></span>)}
+                {dayMatches.slice(0, 2).map((match) => <span className={`calendar-fixture calendar-fixture--${competitionTone(match)} calendar-fixture--${fixtureOutcome(match, profile?.team?.id)}`} key={match.id}><span className="fixture-crests">{match.homeTeam.crest ? <img src={match.homeTeam.crest} alt="" /> : <i>{match.homeTeam.tla || "L"}</i>}{match.awayTeam.crest ? <img src={match.awayTeam.crest} alt="" /> : <i>{match.awayTeam.tla || "V"}</i>}</span><span className="fixture-info"><b>{match.homeTeam.shortName} <em>{match.homeScore ?? "·"}–{match.awayScore ?? "·"} {match.awayTeam.shortName}</em></b><small>{match.competitionName || "LIGA"}</small></span></span>)}
               </button>;
             })}
           </div>
@@ -462,7 +509,7 @@ export default function CareerHomeScreen({ profile, screenPath = "/career", onNa
           <div className="calendar-legend" aria-label="Colores por competición"><span className="legend-league">Liga</span><span className="legend-cup">Copa doméstica</span><span className="legend-international">Copa internacional</span></div>
         </div>
         <aside className="calendar-aside"><div className="calendar-date-block"><strong>{calendarMonth.getFullYear()}</strong><span>{monthLabel}</span></div><div className="calendar-aside-section"><b>PARTIDOS DEL DÍA</b><span>{new Intl.DateTimeFormat("es-AR", { day: "2-digit", month: "long" }).format(new Date(`${selectedDate}T12:00:00`))}</span>
-          {selectedMatches.map((match) => <article className={`calendar-match-card calendar-match-card--${competitionTone(match)}`} key={match.id}><div className="calendar-card-top"><span>PLAYER CAREER · FIXTURE</span><b>{match.competitionName || "LIGA"}</b></div><div className="calendar-card-date">{new Intl.DateTimeFormat("es-AR", { weekday: "long", day: "numeric", month: "long" }).format(new Date(match.utcDate))}<small>{formatMatchTime(match.utcDate)} · TEMPORADA {seasonLabel}</small></div><div className="calendar-card-teams"><div><span className="calendar-card-crest">{match.homeTeam.crest ? <img src={match.homeTeam.crest} alt="" /> : match.homeTeam.tla || "DC"}</span><b>{match.homeTeam.shortName || match.homeTeam.name}</b><small>{String(match.homeTeam.id) === String(profile?.team?.id) ? "TU EQUIPO · LOCAL" : "LOCAL"}</small></div><strong>{match.homeScore ?? "–"}<i>:</i>{match.awayScore ?? "–"}</strong><div><span className="calendar-card-crest">{match.awayTeam.crest ? <img src={match.awayTeam.crest} alt="" /> : match.awayTeam.tla || "DC"}</span><b>{match.awayTeam.shortName || match.awayTeam.name}</b><small>{String(match.awayTeam.id) === String(profile?.team?.id) ? "TU EQUIPO · VISITANTE" : "VISITANTE"}</small></div></div><div className="calendar-card-bottom"><span>ESTADIO</span><b>{match.homeTeam.name}</b><span>JORNADA DE TEMPORADA</span></div></article>)}
+          {selectedMatches.map((match) => <article className={`calendar-match-card calendar-match-card--${competitionTone(match)} calendar-match-card--${fixtureOutcome(match, profile?.team?.id)}`} key={match.id}><div className="calendar-card-top"><span>{match.status === "FINISHED" ? (fixtureOutcome(match, profile?.team?.id) === "win" ? "VICTORIA" : fixtureOutcome(match, profile?.team?.id) === "loss" ? "DERROTA" : "EMPATE") : "PRÓXIMO PARTIDO"}</span><b>{match.competitionName || "LIGA"}</b></div><div className="calendar-card-date">{new Intl.DateTimeFormat("es-AR", { weekday: "long", day: "numeric", month: "long" }).format(new Date(match.utcDate))}<small>{formatMatchTime(match.utcDate)} · TEMPORADA {seasonLabel}</small></div><div className="calendar-card-teams"><div><span className="calendar-card-crest">{match.homeTeam.crest ? <img src={match.homeTeam.crest} alt="" /> : match.homeTeam.tla || "DC"}</span><b>{match.homeTeam.shortName || match.homeTeam.name}</b><small>{String(match.homeTeam.id) === String(profile?.team?.id) ? "TU EQUIPO · LOCAL" : "LOCAL"}</small></div><strong>{match.homeScore ?? "–"}<i>:</i>{match.awayScore ?? "–"}</strong><div><span className="calendar-card-crest">{match.awayTeam.crest ? <img src={match.awayTeam.crest} alt="" /> : match.awayTeam.tla || "DC"}</span><b>{match.awayTeam.shortName || match.awayTeam.name}</b><small>{String(match.awayTeam.id) === String(profile?.team?.id) ? "TU EQUIPO · VISITANTE" : "VISITANTE"}</small></div></div>{match.scorers?.length > 0 && <div className="calendar-card-scorers">{match.scorers.map((goal, index) => <span key={`${goal.minute}-${index}`}>⚽ {goal.minute}′ {goal.player || goal.names?.join(", ")} · {goal.team}</span>)}</div>}<div className="calendar-card-bottom"><span>ESTADIO</span><b>{match.homeTeam.name}</b><span>JORNADA {match.matchday || "DE TEMPORADA"}</span></div></article>)}
           {!selectedMatches.length && <p className="calendar-empty-prompt">Elegí un día con partido para ver el resumen.</p>}
         </div></aside>
       </div>

@@ -1837,6 +1837,7 @@ footer > span {
 .calendar-fixture--cup { border-left:2px solid #e4ad4d;--fixture-accent:#ffd078;--fixture-bg:#64421cbd; }
 .calendar-fixture--international { border-left:2px solid #bc88ff;--fixture-accent:#d5b4ff;--fixture-bg:#46266fbd; }
 .calendar-fixture--cup,.calendar-fixture--international { background:var(--fixture-bg); }
+.calendar-fixture--win { border-left-color:#69d391; }.calendar-fixture--loss { border-left-color:#ff7777; }.calendar-fixture--draw { border-left-color:#d5c878; }
 .calendar-day.has-cup:not(.has-league) { background:linear-gradient(145deg,#63431c,#302316); }
 .calendar-day.has-international:not(.has-league):not(.has-cup) { background:linear-gradient(145deg,#4a2d70,#251c36); }
 .calendar-day.has-league:not(.has-cup):not(.has-international) { background:linear-gradient(145deg,#294c85,#1c3157); }
@@ -1860,6 +1861,8 @@ footer > span {
 .calendar-detail-match>b { color:#ecf1e9;font-size:9px; }
 .calendar-detail-match>strong { color:var(--green);font:600 20px "Oswald",sans-serif; }
 .calendar-match-card { position:relative;overflow:hidden;margin-top:15px;padding:18px 15px 14px;border:1px solid #d9efc755;background:linear-gradient(145deg,#a4ee551b,#17281fef 48%,#0b130ff5);box-shadow:0 18px 50px #0008;animation:fixture-card-in .55s cubic-bezier(.2,.8,.2,1) both; }
+.calendar-match-card--win { border-color:#69d391aa; }.calendar-match-card--loss { border-color:#ff7777aa; }.calendar-match-card--draw { border-color:#d5c878aa; }
+.calendar-card-scorers { display:grid;gap:4px;padding:10px 0 0;color:#dbe8d5;font-size:8px; }.calendar-card-scorers span { overflow:hidden;text-overflow:ellipsis;white-space:nowrap; }
 .calendar-match-card--league { --fixture-accent:#78a6ff;--fixture-glow:#315eaa55; }
 .calendar-match-card--cup { --fixture-accent:#ffd078;--fixture-glow:#a56b2455; }
 .calendar-match-card--international { --fixture-accent:#d5b4ff;--fixture-glow:#794ab655; }
