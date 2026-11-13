@@ -69,3 +69,10 @@ export async function saveCareerProfile(token, profile) {
   });
   if (error) throw error;
 }
+
+export async function deleteCareerProfile(token) {
+  const { error } = await supabase.rpc("dreamchaser_delete_player_profile", {
+    p_session_token: token,
+  });
+  if (error) throw error;
+}

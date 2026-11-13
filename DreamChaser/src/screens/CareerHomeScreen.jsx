@@ -11,6 +11,11 @@ const PLACEHOLDERS = {
   training: ["ENTRENAMIENTO", "Pronto vas a poder elegir sesiones, administrar tu energía y mejorar tus atributos."],
   career: ["CARRERA", "Contratos, objetivos, relaciones y transferencias van a vivir en esta sección."],
   player: ["MI JUGADOR", "Consultá tu perfil, tu club y las estadísticas con las que empieza esta carrera."],
+  "player-stats": ["ESTADÍSTICAS", "El rendimiento de tu jugador partido a partido."],
+  "player-salary": ["SUELDO", "Tu contrato, salario y premios."],
+  "player-transfers": ["TRANSFERENCIAS", "Tu situación en el mercado y el historial de pases."],
+  "player-relations": ["RELACIONES", "Tus vínculos con el plantel, el cuerpo técnico y la afición."],
+  "player-edit": ["EDITAR JUGADOR", "Personalizá los datos de tu jugador."],
   squads: ["PLANTILLAS", "La exploración de clubes y plantillas estará disponible próximamente."],
   info: ["DREAMCHASER", "Un modo carrera para vivir el fútbol desde adentro."],
 };
@@ -30,6 +35,7 @@ const fixtureOutcome = (match, teamId) => {
   return (String(match.homeTeam?.id) === String(teamId) ? match.homeScore > match.awayScore : match.awayScore > match.homeScore) ? "win" : "loss";
 };
 const FORMATIONS = [["ARQ", 1], ["DEF", 4], ["MED", 3], ["DEL", 3]];
+const PLAYER_CARD_STATS = [["pace", "Ritmo"], ["shooting", "Tiro"], ["passing", "Pase"], ["dribbling", "Regate"], ["defense", "Defensa"], ["physical", "Físico"]];
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 function seededRandom(seedText) {
   let seed = [...seedText].reduce((sum, char) => (sum * 31 + char.charCodeAt(0)) >>> 0, 17);
@@ -208,8 +214,11 @@ function simulateOtherFixture(match) {
   return { ...match, status: "FINISHED", homeScore, awayScore, scorers: [...scorerNames(match.homeTeam, homeScore), ...scorerNames(match.awayTeam, awayScore)].sort((a, b) => a.minute - b.minute) };
 }
 
-export default function CareerHomeScreen({ profile, screenPath = "/career", onNavigate = () => {}, onExit }) {
+export default function CareerHomeScreen({ profile, screenPath = "/career", onNavigate = () => {}, onDeletePlayer = async () => {}, onExit }) {
   const [section, setSection] = useState("home");
+  const [showDeleteConfirmation, setShowDeleteConfirmation] = useState(false);
+  const [deleteBusy, setDeleteBusy] = useState(false);
+  const [deleteError, setDeleteError] = useState("");
   const [leagueTeams, setLeagueTeams] = useState([]);
   const [internationalTeams, setInternationalTeams] = useState([]);
   const [homeRoster, setHomeRoster] = useState([]);
@@ -280,6 +289,18 @@ export default function CareerHomeScreen({ profile, screenPath = "/career", onNa
   const nextMatch = matches.find((match) => match.status !== "FINISHED" && [match.homeTeam, match.awayTeam].some((team) => String(team.id) === String(profile?.team?.id))) || matches.find((match) => [match.homeTeam, match.awayTeam].some((team) => String(team.id) === String(profile?.team?.id))) || matches[0];
   const currentMatch = (matchMode === "finished" || matchMode === "summary") && matchResult?.matchId ? matches.find((match) => match.id === matchResult.matchId) || nextMatch : nextMatch;
   const selectedBracket = selectedCompetition === "international" ? internationalBracket : cupBracket;
+  async function deletePlayer() {
+    setDeleteBusy(true); setDeleteError("");
+    try {
+      await onDeletePlayer();
+      localStorage.removeItem(resultsKey);
+      localStorage.removeItem(energyKey);
+    } catch (error) {
+      setDeleteError(error.message || "No pudimos borrar tu jugador. Intentá de nuevo.");
+      setDeleteBusy(false);
+    }
+  }
+
   useEffect(() => {
     if (!leagueTeams.length || !profile?.team?.id) return;
     const playerIndex = leagueTeams.findIndex((team) => String(team.id) === String(profile.team.id));
@@ -514,10 +535,21 @@ export default function CareerHomeScreen({ profile, screenPath = "/career", onNa
         </div></aside>
       </div>
       <footer className="career-footer"><span>UNA CARRERA. INFINITAS HISTORIAS.</span><span>DATOS DE FOOTBALL-DATA.ORG <i>●</i></span></footer>
+    </section> : section === "player" ? <section className="career-home-content career-section-view">
+      <div className="my-player-layout">
+        <aside className="player-card my-player-card"><div className="card-top"><span>PLAYER CARD</span><span>DC · 01</span></div><div className="card-silhouette"><span className="silhouette-number">{profile?.number || "10"}</span><div className="player-orb">{profile?.image ? <img className="player-photo" src={profile.image} alt={`Foto de ${profile?.name || "tu jugador"}`} /> : "-"}</div></div><div className="card-emblems"><div className="card-emblem"><span className="emblem-label">SELECCIÓN</span>{profile?.nationalityFlag && /^https?:\/\//i.test(profile.nationalityFlag) ? <img className="national-flag" src={profile.nationalityFlag} alt="" /> : profile?.nationalityFlag ? <span className="national-flag-emoji">{profile.nationalityFlag}</span> : <span className="emblem-placeholder">—</span>}<span className="emblem-name">{profile?.nationality || "PAÍS"}</span></div><div className="emblem-divider"/><div className="card-emblem"><span className="emblem-label">CLUB</span>{profile?.team?.crest ? <img className="team-crest" src={profile.team.crest} alt="" /> : <span className="emblem-placeholder">DC</span>}<span className="emblem-name">{clubName}</span></div></div><div className="card-data"><strong>{profile?.name || "TU NOMBRE"}</strong><div className="card-stats" aria-label="Estadísticas del jugador">{PLAYER_CARD_STATS.map(([key, label]) => <div key={key}><span>{label}</span><b>{profile?.stats?.[key] ?? "—"}</b></div>)}</div></div><div className="card-bottom"><b>DC</b></div></aside>
+        <div className="my-player-options"><div className="my-player-options-heading"><span>PERFIL DEL JUGADOR</span><small>SELECCIONÁ UN APARTADO <i>→</i></small></div>{[["player-stats","Estadísticas","Rendimiento y evolución","↗"],["player-salary","Sueldo","Contrato y remuneración","$"],["player-transfers","Transferencias","Mercado e historial","⇄"],["player-relations","Relaciones","Vínculos dentro y fuera del club","♡"],["player-edit","Editar","Actualizá los datos de tu jugador","✎"]].map(([id,label,detail,icon],index)=><button className="my-player-option" key={id} onClick={()=>setSection(id)}><span className="my-player-option-index">0{index+1}</span><span className="my-player-option-icon">{icon}</span><span className="my-player-option-copy"><b>{label}</b><small>{detail}</small></span><span className="my-player-option-arrow">→</span></button>)}<button className="my-player-delete" onClick={() => { setDeleteError(""); setShowDeleteConfirmation(true); }}><span aria-hidden="true">×</span><span><b>Borrar jugador</b><small>Eliminá el perfil y su progreso guardado</small></span><i>→</i></button></div>
+      </div>
+      <footer className="career-footer"><span>UNA CARRERA. INFINITAS HISTORIAS.</span><span>GUARDADO EN LA NUBE <i>●</i></span></footer>
+    </section> : section.startsWith("player-") ? <section className="career-home-content career-section-view">
+      <div className="career-heading"><div><span className="career-eyebrow">MI JUGADOR <i>·</i> {clubName.toUpperCase()}</span><h1>{PLACEHOLDERS[section]?.[0]}</h1><p>{PLACEHOLDERS[section]?.[1]}</p></div><button className="career-back-home" onClick={() => setSection("player")}>← Volver a Mi jugador</button></div>
+      <article className="career-coming-card my-player-subsection"><span className="coming-mark">{section === "player-salary" ? "$" : "DC"}</span><div className="career-eyebrow">{profile?.name?.toUpperCase() || "TU JUGADOR"} · {clubName.toUpperCase()}</div><h2>{PLACEHOLDERS[section]?.[1]}</h2><p>Este apartado ya está listo para que pronto puedas gestionar esta parte de tu carrera.</p><button className="career-back-home" onClick={() => setSection("player")}>Volver a Mi jugador <b>→</b></button></article>
+      <footer className="career-footer"><span>UNA CARRERA. INFINITAS HISTORIAS.</span><span>GUARDADO EN LA NUBE <i>●</i></span></footer>
     </section> : <section className="career-home-content career-section-view">
       <div className="career-heading"><div><span className="career-eyebrow">MODO CARRERA <i>·</i> {clubName.toUpperCase()}</span><h1>{PLACEHOLDERS[section]?.[0] || "TU CARRERA"}</h1><p>{PLACEHOLDERS[section]?.[1]}</p></div></div>
       <article className="career-coming-card"><span className="coming-mark">DC</span><div className="career-eyebrow">PRÓXIMAMENTE EN DREAMCHASER</div><h2>{PLACEHOLDERS[section]?.[1]}</h2><button className="career-back-home" onClick={() => setSection("home")}>← Volver al inicio</button></article>
       <footer className="career-footer"><span>UNA CARRERA. INFINITAS HISTORIAS.</span><span>GUARDADO EN LA NUBE <i>●</i></span></footer>
     </section>}
+    {showDeleteConfirmation && <div className="player-delete-overlay"><section className="player-delete-dialog" role="alertdialog" aria-modal="true" aria-labelledby="player-delete-title" aria-describedby="player-delete-description"><span className="career-eyebrow">CONFIRMAR ACCIÓN</span><h2 id="player-delete-title">¿Borrar a {profile?.name || "tu jugador"}?</h2><p id="player-delete-description">Se eliminarán el perfil y el progreso guardado de esta carrera. Esta acción no se puede deshacer.</p>{deleteError && <p className="player-delete-error" role="alert">{deleteError}</p>}<div><button type="button" disabled={deleteBusy} onClick={() => setShowDeleteConfirmation(false)}>Cancelar</button><button type="button" className="player-delete-confirm" disabled={deleteBusy} onClick={deletePlayer}>{deleteBusy ? "Borrando…" : "Sí, borrar jugador"}</button></div></section></div>}
   </main>;
 }

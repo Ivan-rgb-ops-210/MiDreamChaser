@@ -3,7 +3,7 @@ import AuthScreen from "./screens/AuthScreen.jsx";
 import HomeScreen from "./screens/HomeScreen.jsx";
 import PlayerSetupScreen from "./screens/PlayerSetupScreen.jsx";
 import CareerHomeScreen from "./screens/CareerHomeScreen.jsx";
-import { createCareer, getCareerSession, loadCareerProfile, loginCareer, logoutCareer } from "./lib/careerAccounts.js";
+import { createCareer, deleteCareerProfile, getCareerSession, loadCareerProfile, loginCareer, logoutCareer } from "./lib/careerAccounts.js";
 
 export default function App() {
   const [authMode, setAuthMode] = useState(null);
@@ -63,6 +63,6 @@ export default function App() {
   }
   if (authLoading || (!user && ["/career", "/playersetup", "/match", "/match-summary"].includes(pathname))) return <main className="auth-loading" role="status">Cargando tu carrera…</main>;
   if (pathname === "/playersetup") return <PlayerSetupScreen user={user} onClose={() => navigate("/", { replace: true })} onComplete={(profile) => { setPlayerProfile(profile); navigate("/career"); }} />;
-  if (["/career", "/match", "/match-summary"].includes(pathname)) return <CareerHomeScreen profile={playerProfile} screenPath={pathname} onNavigate={navigate} onExit={async () => { await logoutCareer(); setUser(null); setPlayerProfile(null); navigate("/"); }} />;
+  if (["/career", "/match", "/match-summary"].includes(pathname)) return <CareerHomeScreen profile={playerProfile} screenPath={pathname} onNavigate={navigate} onDeletePlayer={async () => { await deleteCareerProfile(user.token); setPlayerProfile(null); navigate("/playersetup"); }} onExit={async () => { await logoutCareer(); setUser(null); setPlayerProfile(null); navigate("/"); }} />;
   return <><HomeScreen onLogin={() => setAuthMode("login")} onSignup={() => setAuthMode("signup")} /><AuthScreen mode={authMode} onClose={() => setAuthMode(null)} onMode={(mode) => { setAuthError(""); setAuthMode(mode); }} onSubmit={submitAuth} busy={authBusy} error={authError} /></>;
 }
