@@ -2276,6 +2276,9 @@ footer > span {
 
 /* Player career page uses the open desktop width for larger, readable panels. */
 .career-section-view:has(.player-career-content) { max-width:1700px;padding-right:clamp(28px,5vw,88px);padding-left:clamp(28px,5vw,88px); }
+.transfer-market-note { margin:14px 0 -2px;color:#8f9b8e;font-size:10px;line-height:1.5; }
+@media(max-width:800px) { .transfer-layout { grid-template-columns:1fr; }.transfer-scouting-panel { grid-column:auto; }.transfer-team-list { grid-template-columns:1fr; } }
+@media(max-width:520px) { .transfer-search { grid-template-columns:1fr;gap:7px; }.transfer-offer-terms { grid-template-columns:1fr; }.transfer-offer-terms span { grid-template-columns:1fr auto;align-items:center; }.transfer-offer-club>i { font-size:6px;padding:5px; } }
 .career-section-view:has(.player-career-content) .career-heading { margin-bottom:44px; }
 .career-section-view:has(.player-career-content) .career-heading h1 { font-size:clamp(48px,5vw,68px); }
 .career-section-view:has(.player-career-content) .career-heading p { font-size:15px; }
@@ -2287,3 +2290,21 @@ footer > span {
 .player-career-total { padding:30px 8px 8px;gap:24px; }.player-career-total b { font-size:42px; }.player-career-empty { padding:25px 2px 6px;font-size:14px; }
 @media(max-width:900px) { .career-section-view:has(.player-career-content) { padding-right:clamp(20px,4vw,40px);padding-left:clamp(20px,4vw,40px); }.player-career-content { gap:14px; }.player-career-panel { padding:22px; } }
 @media(max-width:620px) { .career-section-view:has(.player-career-content) { padding:24px 14px 14px; }.career-section-view:has(.player-career-content) .career-heading { margin-bottom:22px; }.career-section-view:has(.player-career-content) .career-heading h1 { font-size:42px; }.career-section-view:has(.player-career-content) .career-heading p { font-size:12px; }.player-career-content { grid-template-columns:1fr;gap:12px; }.player-career-panel { min-height:175px;padding:19px; }.player-career-panel-title { padding-bottom:15px; }.player-career-panel-title b { font-size:11px; }.player-career-timeline { padding-top:21px; }.player-career-line { top:21px; }.player-career-club-main { align-items:flex-start;flex-direction:row;gap:12px; }.player-career-club-main h2 { font-size:22px; }.player-career-numbers { gap:17px; }.player-career-numbers b { font-size:19px; }.player-career-total { padding-top:23px; }.player-career-total b { font-size:32px; }.player-career-empty { padding-top:19px;font-size:12px; } }
+
+/* Relaciones del jugador */
+.relations-page .career-heading { margin-bottom:24px; }
+.relations-context { display:flex;align-items:center;gap:12px;margin:0 0 16px;padding:12px 16px;border:1px solid #ffffff18;background:#ffffff06;color:#aab5aa;font-size:10px; }
+.relations-context b { color:var(--green);font-size:9px;letter-spacing:1px; }
+.relations-grid { display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px; }
+.relation-card { min-height:0;padding:22px 24px; }
+.relation-card-heading { display:flex;align-items:center;gap:13px; }
+.relation-card-heading>span { width:38px;height:38px;display:grid;place-items:center;border:1px solid #a4ee5538;color:var(--green);font-size:19px; }
+.relation-card-heading>div { display:grid;gap:5px;min-width:0; }
+.relation-card-heading b { color:#eef2e9;font-size:12px;letter-spacing:1px; }
+.relation-card-heading small { color:#859284;font-size:9px; }
+.relation-card-heading strong { margin-left:auto;color:var(--green);font:600 25px "Oswald",sans-serif; }
+.relation-track { height:6px;margin:20px 0 14px;overflow:hidden;background:#ffffff14; }
+.relation-track i { display:block;height:100%;background:linear-gradient(90deg,#76b934,var(--green));transition:width .3s ease; }
+.relation-card p { margin:0 0 8px;color:#e8eee4;font-size:12px;line-height:1.5; }
+.relation-need { display:block;color:#9eaa9b;font-size:10px;line-height:1.5; }
+@media(max-width:680px) { .relations-grid { grid-template-columns:1fr;gap:10px; }.relation-card { padding:18px; }.relations-context { align-items:flex-start;flex-direction:column;gap:5px; } }
