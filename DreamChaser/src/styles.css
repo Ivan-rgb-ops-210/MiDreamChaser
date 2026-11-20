@@ -2484,3 +2484,22 @@ footer > span {
   .activity-coach { min-height:118px; }
 }
 @media(max-width:390px) { .career-left-stack { grid-template-rows:150px minmax(690px,auto); }.career-activity-panel { min-height:690px; }.activity-social-grid { grid-template-columns:1fr; }.activity-social-card p { font-size:11px; } }
+
+/* Compact profile Player Card and make the attribute values easier to scan. */
+.my-player-layout .my-player-card { height:465px;padding:17px; }
+.my-player-layout .my-player-card .card-silhouette { height:122px; }
+.my-player-layout .my-player-card .player-orb { width:112px;height:112px;font-size:52px; }
+.my-player-layout .my-player-card .card-emblems { min-height:72px;margin:0 0 7px; }
+.my-player-layout .my-player-card .team-crest,
+.my-player-layout .my-player-card .national-flag-emoji,
+.my-player-layout .my-player-card .emblem-placeholder { width:42px;height:42px; }
+.my-player-layout .my-player-card .national-flag { width:48px;height:33px; }
+.my-player-layout .my-player-card .card-data { padding-top:9px; }
+.my-player-layout .my-player-card .card-stats { gap:7px 14px;margin-top:9px; }
+.my-player-layout .my-player-card .card-stats > div { padding-top:4px; }
+.my-player-layout .my-player-card .card-stats span { font-size:10px; }
+.my-player-layout .my-player-card .card-stats b { font-size:25px;line-height:.95; }
+@media(max-width:620px) {
+  .my-player-layout .my-player-card { height:445px; }
+  .my-player-layout .my-player-card .card-stats b { font-size:24px; }
+}
