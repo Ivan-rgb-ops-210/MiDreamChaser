@@ -39,6 +39,27 @@ const fixtureOutcome = (match, teamId) => {
 };
 const FORMATIONS = [["ARQ", 1], ["DEF", 4], ["MED", 3], ["DEL", 3]];
 const PLAYER_CARD_STATS = [["pace", "Ritmo"], ["shooting", "Tiro"], ["passing", "Pase"], ["dribbling", "Regate"], ["defense", "Defensa"], ["physical", "Físico"]];
+const TRAINING_SKILL_NAMES = { pace: "Ritmo", shooting: "Tiro", passing: "Pase", dribbling: "Regate", defense: "Defensa", physical: "Físico" };
+const COACH_TRAINING_MESSAGES = {
+  0: ["Hoy no salió. Revisemos la técnica y volvemos a intentarlo en la próxima sesión.", "Te costó encontrar el ritmo; lo importante es corregir y seguir trabajando.", "No alcanzó esta vez. Mañana quiero verte insistir con más concentración.", "Sesión difícil. Vamos a practicar los fundamentos antes de subir la intensidad.", "No salió como esperábamos, pero ya sabemos qué ajustar para la próxima."],
+  1: ["Buen comienzo: resolviste una de cada tres. Ahora toca ganar regularidad.", "Hay una base para construir. Repetí el ejercicio y cuidá los detalles.", "Una buena acción entre tres. Seguí trabajando para sostener ese nivel.", "Aprobado justo. Con más calma podés convertir esas chances en puntos.", "Mostraste una señal positiva; ahora busquemos hacerlo más seguido."],
+  2: ["Muy buena sesión: dos de tres. Se nota el trabajo y la confianza.", "Gran progreso. Estuviste cerca de completar una sesión perfecta.", "Dos aciertos de tres; hoy entrenaste con intención y buenos tiempos.", "Buen nivel. Esa mejora ya se empieza a notar en los ejercicios.", "Sólido trabajo: resolviste casi todo. Mantené esta concentración."],
+  3: ["Sesión sobresaliente: tres de tres. Así se gana un lugar en el equipo.", "Perfecto. Leíste cada ejercicio y ejecutaste con mucha precisión.", "Excelente trabajo: completaste la sesión. Quiero esa confianza en el partido.", "Tres de tres. Hoy marcaste el estándar para el resto del plantel.", "Impecable. Tu esfuerzo se está convirtiendo en una ventaja real."],
+};
+const RELATION_MESSAGES = {
+  fans: [
+    ["La tribuna pide más compromiso: todavía espera una señal tuya.", "Se escuchan dudas en la grada; un buen partido puede cambiar el clima.", "La hinchada quiere verte pelear cada pelota y acercarte al gol.", "Todavía no conectaste con la gente. El próximo esfuerzo puede abrir esa puerta."],
+    ["La gente empieza a reconocer tu esfuerzo, aunque quiere más regularidad.", "Hay aplausos cuando te animás; ahora esperan que aparezcas más seguido.", "La tribuna ve tu potencial y aguarda una actuación que la encienda.", "Tu trabajo empieza a notarse. Un gol o una asistencia pueden acercarte a la gente."],
+    ["La hinchada ya valora lo que aportás y te acompaña en cada partido.", "Tu nombre empieza a sonar con cariño en las tribunas.", "La gente confía en vos; siente que siempre podés destrabar el partido.", "Te ganaste un lugar entre los jugadores queridos por la gente."],
+    ["La tribuna te adora: cada vez que tocás la pelota se siente la expectativa.", "Sos uno de los favoritos de la gente. La hinchada juega con vos.", "Tu entrega y tus goles ya son parte de la identidad del club.", "La gente te ve como un referente; tu camiseta se reconoce en cada tribuna."],
+  ],
+  teammates: [
+    ["El vestuario necesita verte más conectado con el juego colectivo.", "Tus compañeros esperan más comunicación y apoyo dentro de la cancha.", "Todavía falta confianza en las asociaciones; acercate y pedí la pelota.", "El grupo quiere que compartas más el juego y ayudes en los momentos difíciles."],
+    ["El plantel empieza a confiar, pero todavía pueden entenderse mejor.", "Tus compañeros valoran algunos gestos; buscá repetirlos durante el partido.", "Hay buenas conexiones, aunque el equipo quiere verte participar más.", "El vestuario nota tu esfuerzo y espera más pases decisivos."],
+    ["El equipo disfruta jugar con vos; tus compañeros buscan tu apoyo.", "Te ganaste la confianza del grupo y tus asociaciones funcionan cada vez mejor.", "Tus compañeros saben que pueden contar con vos cuando el partido se complica.", "El vestuario valora tu generosidad y cómo hacés jugar al equipo."],
+    ["Sos una pieza clave del vestuario: tus compañeros confían plenamente en vos.", "El grupo te sigue. Tu manera de asociarte levanta a todo el equipo.", "Tus compañeros te consideran un líder dentro de la cancha.", "La conexión con el plantel es total: hacés mejores a quienes juegan cerca tuyo."],
+  ],
+};
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 const salaryKeyFor = (profile) => `dreamchaser.contract.v1.${profile?.createdAt || profile?.team?.id || profile?.name || "career"}`;
 const playerRating = (profile) => { const values = Object.values(profile?.stats || {}).map(Number).filter(Number.isFinite); return values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : 50; };
@@ -229,6 +250,21 @@ function makeKnockoutBracket(teams, playerTeam, size, seedText, preserveOrder = 
   }
   return rounds;
 }
+function makeChampionsBracket(standings, playerTeam) {
+  if (standings.length < 36) return [];
+  const position = standings.findIndex((row) => String(row.team.id) === String(playerTeam?.id));
+  if (position < 0 || position >= 24) return [];
+  const playoffPairs = Array.from({ length: 8 }, (_, index) => ({ home: standings[8 + index].team, away: standings[23 - index].team }));
+  const roundOf16 = Array.from({ length: 8 }, (_, index) => ({ home: standings[index].team, away: { name: `Ganador ${8 - index}` } }));
+  const rounds = [{ label: "PLAY-OFFS", matches: playoffPairs }, { label: "OCTAVOS", matches: roundOf16 }];
+  let count = roundOf16.length;
+  while (count > 1) {
+    const nextCount = count / 2;
+    rounds.push({ label: nextCount === 1 ? "FINAL" : nextCount === 2 ? "SEMIFINALES" : "CUARTOS", matches: Array.from({ length: nextCount }, (_, index) => ({ home: { name: `Ganador ${index * 2 + 1}` }, away: { name: `Ganador ${index * 2 + 2}` } })) });
+    count = nextCount;
+  }
+  return rounds;
+}
 function fixturesFromBracket(rounds, playerTeam, start, idPrefix, competitionName, dayOffset, roundGap, results = {}) {
   return rounds.flatMap((round, index) => {
     const date = new Date(start); date.setDate(start.getDate() + dayOffset + index * roundGap); date.setHours(20, 0, 0, 0);
@@ -324,6 +360,7 @@ export default function CareerHomeScreen({ profile, screenPath = "/career", onNa
   const [selectedCompetition, setSelectedCompetition] = useState("league");
   const [expandedCompetition, setExpandedCompetition] = useState(false);
   const [bracketRound, setBracketRound] = useState(0);
+  const [championsView, setChampionsView] = useState("table");
   const [selectedDate, setSelectedDate] = useState(() => localDateKey(seasonStartFor(profile)));
   const [matchMode, setMatchMode] = useState("preview");
   const [matchSpeed, setMatchSpeed] = useState(1);
@@ -348,6 +385,8 @@ export default function CareerHomeScreen({ profile, screenPath = "/career", onNa
   const [energy, setEnergy] = useState(() => { try { return clamp(Number(localStorage.getItem(energyKey) || 100), 0, 100); } catch { return 100; } });
   const trainingUsedKey = `dreamchaser.training-used.${profile?.createdAt || profile?.name || "career"}`;
   const [trainingUsed, setTrainingUsed] = useState(() => { try { return localStorage.getItem(trainingUsedKey) === "true"; } catch { return false; } });
+  const trainingReportKey = `dreamchaser.training-report.v1.${profile?.createdAt || profile?.team?.id || profile?.name || "career"}`;
+  const [trainingReport, setTrainingReport] = useState(() => { try { return JSON.parse(localStorage.getItem(trainingReportKey) || "null"); } catch { return null; } });
   const [trainingState, setTrainingState] = useState(null);
   const [trainingResult, setTrainingResult] = useState(null);
   const matchdayFeedRef = useRef(null);
@@ -395,10 +434,7 @@ export default function CareerHomeScreen({ profile, screenPath = "/career", onNa
   const internationalPhaseComplete = matches.filter((match) => match.id?.startsWith("international-group-")).length === 144 && matches.filter((match) => match.id?.startsWith("international-group-")).every((match) => match.status === "FINISHED");
   const internationalBracket = useMemo(() => {
     if (!internationalPhaseComplete) return [];
-    const qualified = internationalStandings.slice(0, 8).map((row) => row.team);
-    if (!qualified.some((team) => String(team.id) === String(profile?.team?.id))) return [];
-    const seeded = [qualified[0], qualified[7], qualified[3], qualified[4], qualified[1], qualified[6], qualified[2], qualified[5]];
-    return makeKnockoutBracket(seeded, profile?.team, 8, `${profile?.team?.id}-international-${seasonStart.getFullYear()}`, true);
+    return makeChampionsBracket(internationalStandings, profile?.team);
   }, [internationalPhaseComplete, internationalStandings, profile?.team?.id, seasonStart.getFullYear()]);
   const eliminated = (prefix) => {
     const played = matches.filter((match) => match.id?.startsWith(prefix) && savedResults[match.id]?.status === "FINISHED" && [match.homeTeam, match.awayTeam].some((team) => String(team.id) === String(profile?.team?.id)));
@@ -446,7 +482,7 @@ export default function CareerHomeScreen({ profile, screenPath = "/career", onNa
   const lastCupMatch = playedCupMatches.at(-1);
   const lastCupResult = lastCupMatch && savedResults[lastCupMatch.id];
   const internationalRank = internationalStandings.findIndex((row) => String(row.team.id) === String(profile?.team?.id)) + 1;
-  const cupEliminated = objectiveSpec.collective.kind === "international" ? internationalPhaseComplete && internationalRank > 8 || eliminated("international-knockout-") : Boolean(lastCupResult && lastCupResult.homeScore !== lastCupResult.awayScore && (String(lastCupMatch.homeTeam.id) === String(profile?.team?.id) ? lastCupResult.homeScore < lastCupResult.awayScore : lastCupResult.awayScore < lastCupResult.homeScore));
+  const cupEliminated = objectiveSpec.collective.kind === "international" ? internationalPhaseComplete && internationalRank > 24 || eliminated("international-knockout-") : Boolean(lastCupResult && lastCupResult.homeScore !== lastCupResult.awayScore && (String(lastCupMatch.homeTeam.id) === String(profile?.team?.id) ? lastCupResult.homeScore < lastCupResult.awayScore : lastCupResult.awayScore < lastCupResult.homeScore));
   const collectiveComplete = objectiveSpec.collective.kind === "league" ? leagueFinished && leagueRank > 0 && leagueRank <= objectiveSpec.collective.target : cupWins >= objectiveSpec.collective.target;
   const collectiveFailed = objectiveSpec.collective.kind === "league" ? leagueFinished && !collectiveComplete : cupEliminated && !collectiveComplete;
   const statisticalComplete = clubCareerStats.goals >= objectiveSpec.goals && clubCareerStats.assists >= objectiveSpec.assists;
@@ -456,6 +492,14 @@ export default function CareerHomeScreen({ profile, screenPath = "/career", onNa
   const relationScale = (production, ratePerMatch, matches) => matches ? clamp(Math.round(35 + Math.min(1, production / Math.max(1, matches * ratePerMatch)) * 65), 35, 100) : 35;
   const supportersRelation = relationScale(clubCareerStats.goals, .4, clubCareerStats.matches);
   const teammatesRelation = relationScale(clubCareerStats.assists, .3, clubCareerStats.matches);
+  const commentarySeed = clubCareerStats.matches * 17 + clubCareerStats.goals * 7 + clubCareerStats.assists * 11 + Number(trainingReport?.points || 0) + seasonOffset;
+  const relationBand = (value) => value < 45 ? 0 : value < 65 ? 1 : value < 85 ? 2 : 3;
+  const relationMessage = (group, value, salt) => {
+    const messages = RELATION_MESSAGES[group][relationBand(value)];
+    return messages[(commentarySeed + salt) % messages.length];
+  };
+  const trainingGrade = clamp(Number(trainingReport?.points) || 0, 0, 3);
+  const coachTrainingMessage = trainingReport ? COACH_TRAINING_MESSAGES[trainingGrade][(commentarySeed + trainingGrade) % COACH_TRAINING_MESSAGES[trainingGrade].length] : "El entrenador espera verte en el campo de entrenamiento antes del próximo partido.";
   const playerSkillAverage = PLAYER_CARD_STATS.reduce((sum, [key]) => sum + clamp(Number(profile?.stats?.[key]) || 0, 0, 100), 0) / PLAYER_CARD_STATS.length;
   const coachRelation = clamp(Math.round(35 + playerSkillAverage * .65), 35, 100);
   const relationCards = [
@@ -577,6 +621,7 @@ export default function CareerHomeScreen({ profile, screenPath = "/career", onNa
   }, [matchProgress, matchMinute, activeMatchEvent, matchMode]);
   useEffect(() => { try { localStorage.setItem(energyKey, String(energy)); } catch { /* Storage can be unavailable in private browsing. */ } }, [energy, energyKey]);
   useEffect(() => { try { localStorage.setItem(trainingUsedKey, String(trainingUsed)); } catch {} }, [trainingUsed, trainingUsedKey]);
+  useEffect(() => { try { if (trainingReport) localStorage.setItem(trainingReportKey, JSON.stringify(trainingReport)); } catch {} }, [trainingReport, trainingReportKey]);
   useEffect(() => { try { localStorage.setItem(resultsKey, JSON.stringify(savedResults)); } catch { /* Storage can be unavailable in private browsing. */ } }, [resultsKey, savedResults]);
   useEffect(() => {
     const playedMatchId = matchResult?.matchId;
@@ -691,17 +736,25 @@ export default function CareerHomeScreen({ profile, screenPath = "/career", onNa
 
   const renderCompetitionPanel = (expanded = false) => {
     const showLeague = selectedCompetition === "league";
-    const showChampionsTable = selectedCompetition === "international" && !internationalPhaseComplete;
+    const showChampionsTable = selectedCompetition === "international" && (!internationalPhaseComplete || championsView === "table");
+    const isChampions = selectedCompetition === "international";
+    const showStandings = showLeague || showChampionsTable;
     const leagueRows = showLeague ? leagueStandings : internationalStandings;
     const rows = showLeague ? leagueTeams : internationalTeams;
-    const competitionTitle = showLeague ? leagueName.toUpperCase() : showChampionsTable ? "CHAMPIONS LEAGUE" : "COPA DOMÉSTICA";
+    const competitionTitle = showLeague ? leagueName.toUpperCase() : isChampions ? "CHAMPIONS LEAGUE" : "COPA DOMÉSTICA";
     const round = selectedBracket[bracketRound];
-    return <article className={`career-table-panel competition-panel ${showLeague ? "career-table-feature" : `career-cup-bracket career-cup-bracket--${selectedCompetition}`} ${expanded ? "is-expanded" : ""}`}>
+    const renderTie = (match, roundIndex, matchIndex) => {
+      const playerTie = [match.home, match.away].some((team) => String(team.id) === String(profile?.team?.id));
+      return <div className={`cup-tie ${playerTie ? "is-player-tie" : ""}`} key={`${roundIndex}-${matchIndex}`}><span className="cup-tie-team">{match.home.crest ? <img src={match.home.crest} alt="" /> : <i>{match.home.tla || "DC"}</i>}<b>{match.home.shortName || match.home.name}</b></span><span className="cup-tie-vs">VS</span><span className="cup-tie-team">{match.away.crest ? <img src={match.away.crest} alt="" /> : <i>{match.away.tla || "DC"}</i>}<b>{match.away.shortName || match.away.name}</b></span></div>;
+    };
+    return <article className={`career-table-panel competition-panel ${showStandings ? "career-table-feature" : `career-cup-bracket career-cup-bracket--${selectedCompetition}`} ${isChampions ? "competition-panel--international" : ""} ${expanded ? "is-expanded" : ""}`}>
       <div className="competition-panel-toolbar"><div className="competition-picker-inline" role="group" aria-label="Elegir competición">{competitionOptions.map((competition) => <button key={competition.id} type="button" className={`competition-choice competition-choice--${competition.id} ${selectedCompetition === competition.id ? "is-selected" : ""}`} onClick={() => { setSelectedCompetition(competition.id); setBracketRound(0); }} aria-pressed={selectedCompetition === competition.id}>{competition.label}</button>)}</div>{expanded ? <button type="button" className="competition-expand" onClick={() => setExpandedCompetition(false)}>CERRAR <span>×</span></button> : <button type="button" className="competition-expand" onClick={() => setExpandedCompetition(true)}>AMPLIAR <span>⛶</span></button>}</div>
-      <div className="panel-kicker"><span>02</span> {competitionTitle}{showLeague || showChampionsTable ? <b>CLASIFICACIÓN EN VIVO</b> : <b>{round?.label || (internationalPhaseComplete ? "NO CLASIFICADO" : "EN PREPARACIÓN")}</b>}</div>
+      {isChampions && internationalPhaseComplete && <div className="competition-view-tabs" role="tablist" aria-label="Vista de Champions League"><button type="button" role="tab" aria-selected={championsView === "table"} className={championsView === "table" ? "is-active" : ""} onClick={() => setChampionsView("table")}>TABLA</button><button type="button" role="tab" aria-selected={championsView === "bracket"} className={championsView === "bracket" ? "is-active" : ""} onClick={() => setChampionsView("bracket")}>LLAVES</button></div>}
+      <header className="competition-panel-heading"><div><small>{showStandings ? "CLASIFICACIÓN" : "ELIMINACIÓN DIRECTA"} · TEMPORADA {seasonLabel}</small><h2>{competitionTitle}</h2></div><b>{showLeague || showChampionsTable ? "EN VIVO" : round?.label || (internationalPhaseComplete ? "SIN CLASIFICACIÓN" : "EN PREPARACIÓN")}</b></header>
       {(showLeague || showChampionsTable) && <><div className="competition-table-scroll"><div className="table-head career-zero-head"><span>#</span><span>CLUB</span><span>PJ</span><span>G</span><span>E</span><span>P</span><span>GF</span><span>GC</span><span>DG</span><span>PTS</span></div><div className="career-standings-list competition-standings">{showLeague && leagueTeamsLoading ? <div className="table-empty"><p>Cargando clubes…</p></div> : showLeague && leagueTeamsError ? <div className="table-empty"><p>{leagueTeamsError}</p></div> : leagueRows.length ? leagueRows.map((row, index) => <div className={String(row.team.id) === String(profile?.team?.id) ? "zero-standing-row is-player-team" : "zero-standing-row"} key={row.team.id || row.team.name}><span>{index + 1}</span><span className="standing-team">{row.team.crest && <img src={row.team.crest} alt="" />}<b>{row.team.shortName || row.team.name}</b></span>{[row.played,row.won,row.drawn,row.lost,row.goalsFor,row.goalsAgainst,row.goalsFor-row.goalsAgainst,row.points].map((value, column) => <span className="zero-stat" key={column}>{value}</span>)}</div>) : <div className="table-empty"><p>{rows.length ? "La tabla se actualizará al jugar los partidos." : "Cargando equipos de la competición…"}</p></div>}</div></div><div className="table-foot"><span>{rows.length} CLUBES</span><span>{showChampionsTable ? "36 CLUBES · 8 FECHAS · TOP 8 A OCTAVOS" : "SE ACTUALIZA AL FINALIZAR CADA PARTIDO"}</span></div></>}
-      {!showLeague && !showChampionsTable && round && <><div className="bracket-phase-controls"><button type="button" aria-label="Fase anterior" disabled={bracketRound <= 0} onClick={() => setBracketRound((value) => Math.max(0, value - 1))}>←</button><b>{round.label} <small>FASE {bracketRound + 1} DE {selectedBracket.length}</small></b><button type="button" aria-label="Fase siguiente" disabled={bracketRound >= selectedBracket.length - 1} onClick={() => setBracketRound((value) => Math.min(selectedBracket.length - 1, value + 1))}>→</button></div><div className="cup-round-matches">{round.matches.map((match, matchIndex) => { const playerTie = [match.home, match.away].some((team) => String(team.id) === String(profile?.team?.id)); return <div className={`cup-tie ${playerTie ? "is-player-tie" : ""}`} key={`${bracketRound}-${matchIndex}`}><span className="cup-tie-team">{match.home.crest ? <img src={match.home.crest} alt="" /> : <i>{match.home.tla || "DC"}</i>}<b>{match.home.shortName || match.home.name}</b></span><span className="cup-tie-vs">VS</span><span className="cup-tie-team">{match.away.crest ? <img src={match.away.crest} alt="" /> : <i>{match.away.tla || "DC"}</i>}<b>{match.away.shortName || match.away.name}</b></span></div>; })}</div><div className="table-foot"><span>{selectedCompetition === "international" ? "TOP 8 DE LA FASE DE LIGA" : "SORTEO DE TEMPORADA"}</span><span>CRUCES DE {round.label}</span></div></>}
-      {!showLeague && !showChampionsTable && !round && <div className="cup-bracket-empty">{selectedCompetition === "cup" ? "El cuadro estará disponible cuando se carguen los equipos." : internationalPhaseComplete ? "Tu equipo terminó fuera de los ocho puestos de clasificación directa." : "La fase eliminatoria empieza al terminar la fase de liga."}</div>}
+      {!showLeague && !showChampionsTable && round && expanded && <div className="cup-bracket-rounds competition-full-bracket" style={{ gridTemplateColumns: `repeat(${selectedBracket.length}, minmax(190px, 1fr))` }}>{selectedBracket.map((phase, phaseIndex) => <section className="cup-round" key={phase.label}><h3>{phase.label}<small>FASE {phaseIndex + 1}</small></h3>{phase.matches.map((match, matchIndex) => renderTie(match, phaseIndex, matchIndex))}</section>)}</div>}
+      {!showLeague && !showChampionsTable && round && !expanded && <><div className="bracket-phase-controls"><button type="button" aria-label="Fase anterior" disabled={bracketRound <= 0} onClick={() => setBracketRound((value) => Math.max(0, value - 1))}>←</button><b>{round.label} <small>FASE {bracketRound + 1} DE {selectedBracket.length}</small></b><button type="button" aria-label="Fase siguiente" disabled={bracketRound >= selectedBracket.length - 1} onClick={() => setBracketRound((value) => Math.min(selectedBracket.length - 1, value + 1))}>→</button></div><div className="cup-round-matches">{round.matches.map((match, matchIndex) => renderTie(match, bracketRound, matchIndex))}</div><div className="table-foot"><span>{selectedCompetition === "international" ? "TOP 8 DE LA FASE DE LIGA" : "SORTEO DE TEMPORADA"}</span><span>CRUCES DE {round.label}</span></div></>}
+      {!showLeague && !showChampionsTable && !round && <div className="cup-bracket-empty">{selectedCompetition === "cup" ? "El cuadro estará disponible cuando se carguen los equipos." : internationalPhaseComplete ? "Tu equipo terminó fuera de los 24 puestos de clasificación a eliminatorias." : "La fase eliminatoria empieza al terminar la fase de liga."}</div>}
     </article>;
   };
 
@@ -723,7 +776,13 @@ export default function CareerHomeScreen({ profile, screenPath = "/career", onNa
           <button type="button" className="career-match-panel" onClick={() => { setMatchMode("preview"); setSection("play"); onNavigate("/match"); }} aria-label="Ver próximo partido">
             <span className="panel-kicker"><span>01</span> PRÓXIMO PARTIDO <b className="match-status">{nextMatch?.competitionName || "DEBUT PENDIENTE"}</b></span><span className="match-card-inner"><span className="match-club"><span className="match-crest">{nextMatch?.homeTeam?.crest ? <img src={nextMatch.homeTeam.crest} alt="" /> : "DC"}</span><strong>{nextMatch?.homeTeam?.shortName || nextMatch?.homeTeam?.name || clubName}</strong><small>{String(nextMatch?.homeTeam?.id) === String(profile?.team?.id) ? "LOCAL" : "VISITANTE"}</small></span><span className="match-center"><span>{nextMatch?.competitionName || leagueName}</span><strong>VS</strong><small>{nextMatch ? new Intl.DateTimeFormat("es-AR", { day: "2-digit", month: "short" }).format(new Date(nextMatch.utcDate)) : "INICIO DE TEMPORADA"}</small></span><span className="match-club opponent"><span className="match-crest opponent-crest">{nextMatch?.awayTeam?.crest ? <img src={nextMatch.awayTeam.crest} alt="" /> : "?"}</span><strong>{nextMatch?.awayTeam?.shortName || nextMatch?.awayTeam?.name || "RIVAL"}</strong><small>{String(nextMatch?.awayTeam?.id) === String(profile?.team?.id) ? "LOCAL" : "VISITANTE"}</small></span></span>
           </button>
-          <article className="career-empty-feature career-lower-empty" aria-label="Espacio reservado"><span>DC</span></article>
+          <article className="career-activity-panel" aria-label="Actividad y relaciones del plantel">
+            <header className="activity-panel-heading"><div><span>EL DÍA A DÍA · {seasonLabel}</span><h2>CENTRO DE ACTIVIDAD</h2></div><b>#{profile?.number || "DC"}</b></header>
+            <section className="activity-energy"><div><span>ENERGÍA DISPONIBLE</span><strong>{Math.round(energy)}%</strong></div><i><u style={{ width: `${energy}%` }}/></i><small>{energy < 18 ? "Te falta energía para entrenar. Recuperala en el próximo partido." : trainingUsed ? "Sesión completada · la energía se renueva al terminar el próximo partido." : "Tenés energía para entrenar antes del próximo partido."}</small></section>
+            <section className={`activity-coach ${trainingReport ? `activity-coach--${trainingGrade}` : "activity-coach--pending"}`}><div className="activity-section-label"><span>◎</span><b>MENSAJE DEL ENTRENADOR</b><em>{trainingReport ? `${trainingGrade}/3` : trainingUsed ? "SESIÓN COMPLETADA" : "PENDIENTE"}</em></div>{trainingReport ? <><h3>Entrenamiento de {TRAINING_SKILL_NAMES[trainingReport.skill] || "habilidad"}</h3><p>{coachTrainingMessage}</p></> : <><h3>{trainingUsed ? "Ya completaste tu sesión" : "Hoy todavía no entrenaste"}</h3><p>{trainingUsed ? "El entrenador ya registró tu trabajo. Después del próximo partido vas a poder hacer una nueva sesión." : "El entrenador te espera en el campo: elegí una habilidad y preparate para tu próximo partido."}</p></>}</section>
+            <div className="activity-social-grid"><section className={`activity-social-card activity-social-card--fans activity-relation--${relationBand(supportersRelation)}`}><div className="activity-section-label"><span>♡</span><b>HINCHAS</b><em>{supportersRelation}%</em></div><i><u style={{ width: `${supportersRelation}%` }}/></i><p>{relationMessage("fans", supportersRelation, 3)}</p></section><section className={`activity-social-card activity-social-card--team activity-relation--${relationBand(teammatesRelation)}`}><div className="activity-section-label"><span>⇢</span><b>COMPAÑEROS</b><em>{teammatesRelation}%</em></div><i><u style={{ width: `${teammatesRelation}%` }}/></i><p>{relationMessage("teammates", teammatesRelation, 7)}</p></section></div>
+            <button type="button" className="activity-training-link" onClick={() => { setSection("training"); setMatchMode("preview"); onNavigate("/career"); }}>{trainingUsed ? "VER ENTRENAMIENTO" : "IR A ENTRENAR"}<b>→</b></button>
+          </article>
         </div>
         {renderCompetitionPanel()}
       </div>
@@ -758,7 +817,7 @@ export default function CareerHomeScreen({ profile, screenPath = "/career", onNa
         ].map((stat, index) => index < summaryVisibleCount && <article className={`player-summary-stat ${index === 3 ? "player-summary-stat--rating" : ""}`} key={stat.label} style={{ animationDelay: `${index * 35}ms` }}><div><span>{stat.label}</span>{index < 3 && <small>{stat.note}</small>}{index === 3 && <small>RENDIMIENTO DEL PARTIDO</small>}</div><AnimatedStatValue value={stat.value} decimals={index === 3 ? 1 : 0}/>{index === 3 && <p className="coach-message">{matchResult?.userRating >= 8 ? "Gran partido. Fuiste decisivo y marcaste la diferencia." : matchResult?.userRating >= 7 ? "Buen trabajo. Tu aporte fue importante para el equipo." : matchResult?.userRating >= 6 ? "Partido correcto. Seguí trabajando para influir más en el juego." : "No fue tu mejor tarde. Entrená y tendrás una nueva oportunidad."}</p>}</article>)}</div>{summaryVisibleCount === 4 && <button className="summary-return-button" onClick={() => { setMatchMode("preview"); setSection("home"); onNavigate("/career"); }}>VOLVER A LA CARRERA <b>✓</b></button>}</section>}
       </article>
       <footer className="career-footer"><span>UNA CARRERA. INFINITAS HISTORIAS.</span><span>TEMPORADA {seasonLabel}</span></footer>
-    </section> : visibleSection === "training" ? <TrainingScreen profile={profile} energy={energy} trainingUsed={trainingUsed} onBack={() => setSection("home")} onStart={(skill) => setTrainingState({ skill, startedAt: Date.now() })} trainingState={trainingState} onComplete={async ({ skill, points, energyCost }) => { const before = Number(profile.stats?.[skill] || 0); const after = clamp(before + points, 0, 100); setEnergy((value) => clamp(value - energyCost, 0, 100)); setTrainingUsed(true); setTrainingState(null); setSection("training-result"); setTrainingResult({ skill, points, before, after }); if (points) await onUpdateProfile({ ...profile, stats: { ...profile.stats, [skill]: after } }); }} /> : section === "training-result" ? <TrainingResultScreen result={trainingResult} onBack={() => { setSection("training"); onNavigate("/career"); }} /> : visibleSection === "calendar" ? <section className="career-home-content career-section-view">
+    </section> : visibleSection === "training" ? <TrainingScreen profile={profile} energy={energy} trainingUsed={trainingUsed} onBack={() => setSection("home")} onStart={(skill) => setTrainingState({ skill, startedAt: Date.now() })} trainingState={trainingState} onComplete={async ({ skill, points, energyCost }) => { const before = Number(profile.stats?.[skill] || 0); const after = clamp(before + points, 0, 100); setEnergy((value) => clamp(value - energyCost, 0, 100)); setTrainingUsed(true); setTrainingState(null); setSection("training-result"); setTrainingResult({ skill, points, before, after }); setTrainingReport({ skill, points, before, after, completedAt: new Date().toISOString() }); if (points) await onUpdateProfile({ ...profile, stats: { ...profile.stats, [skill]: after } }); }} /> : section === "training-result" ? <TrainingResultScreen result={trainingResult} onBack={() => { setSection("training"); onNavigate("/career"); }} /> : visibleSection === "calendar" ? <section className="career-home-content career-section-view">
       <div className="calendar-layout">
         <div className="calendar-main">
           <header className="calendar-title"><div><span className="career-eyebrow">MODO CARRERA · {leagueName.toUpperCase()} · {seasonLabel}</span><h1>CALENDARIO <span>{profile?.league?.emblem ? <img src={profile.league.emblem} alt="" /> : "DC"}</span></h1></div><div className="calendar-controls">{leagueFinished && !nextMatch && <button type="button" className="next-season-button" onClick={beginNextSeason}>NUEVA TEMPORADA ↗</button>}<button aria-label="Mes anterior" disabled={monthStart <= firstSeasonMonth} onClick={() => changeCalendarMonth(-1)}>‹</button><button aria-label="Mes siguiente" disabled={monthStart >= lastSeasonMonth} onClick={() => changeCalendarMonth(1)}>›</button></div></header>
@@ -766,9 +825,9 @@ export default function CareerHomeScreen({ profile, screenPath = "/career", onNa
             {["DOM", "LUN", "MAR", "MIÉ", "JUE", "VIE", "SÁB"].map((day) => <div className="calendar-weekday" key={day}>{day}</div>)}
             {calendarDays.map(({ date, inMonth, key }) => {
               const dayMatches = matchesByDate[key] || [];
-              return <button type="button" key={key} className={`calendar-day ${inMonth ? "" : "is-outside"} ${key === selectedDate ? "is-selected" : ""} ${dayMatches.length ? "has-match" : ""} ${[...new Set(dayMatches.map(competitionTone))].map((tone) => `has-${tone}`).join(" ")}`} onClick={() => setSelectedDate(key)}>
+              return <button type="button" key={key} className={`calendar-day ${inMonth ? "" : "is-outside"} ${key === selectedDate ? "is-selected" : ""} ${dayMatches.length ? "has-match" : ""} ${[...new Set(dayMatches.map(competitionTone))].map((tone) => `has-${tone}`).join(" ")} ${[...new Set(dayMatches.map((match) => fixtureOutcome(match, profile?.team?.id)).filter((outcome) => outcome !== "upcoming"))].map((outcome) => `has-result-${outcome}`).join(" ")}`} onClick={() => setSelectedDate(key)}>
                 <span className="calendar-day-number">{date.getDate()}</span>
-                {dayMatches.slice(0, 2).map((match) => <span className={`calendar-fixture calendar-fixture--${competitionTone(match)} calendar-fixture--${fixtureOutcome(match, profile?.team?.id)}`} key={match.id}><span className="fixture-crests">{match.homeTeam.crest ? <img src={match.homeTeam.crest} alt="" /> : <i>{match.homeTeam.tla || "L"}</i>}{match.awayTeam.crest ? <img src={match.awayTeam.crest} alt="" /> : <i>{match.awayTeam.tla || "V"}</i>}</span><span className="fixture-info"><b>{match.homeTeam.shortName} <em>{match.homeScore ?? "·"}–{match.awayScore ?? "·"} {match.awayTeam.shortName}</em></b><small>{match.competitionName || "LIGA"}</small></span></span>)}
+                {dayMatches.slice(0, 2).map((match) => { const outcome = fixtureOutcome(match, profile?.team?.id); const statusLabel = outcome === "win" ? "GANADO" : outcome === "loss" ? "PERDIDO" : outcome === "draw" ? "EMPATADO" : "PRÓXIMO"; return <span className={`calendar-fixture calendar-fixture--${competitionTone(match)} calendar-fixture--${outcome}`} key={match.id}><span className="fixture-crests">{match.homeTeam.crest ? <img src={match.homeTeam.crest} alt="" /> : <i>{match.homeTeam.tla || "L"}</i>}{match.awayTeam.crest ? <img src={match.awayTeam.crest} alt="" /> : <i>{match.awayTeam.tla || "V"}</i>}</span><span className="fixture-info"><b>{match.homeTeam.shortName} <em>{match.homeScore ?? "·"}–{match.awayScore ?? "·"} {match.awayTeam.shortName}</em></b><small>{match.competitionName || "LIGA"} · {statusLabel}</small></span></span>; })}
               </button>;
             })}
           </div>

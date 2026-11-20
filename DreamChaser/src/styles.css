@@ -2373,3 +2373,114 @@ footer > span {
 .relation-card p { margin:0 0 8px;color:#e8eee4;font-size:12px;line-height:1.5; }
 .relation-need { display:block;color:#9eaa9b;font-size:10px;line-height:1.5; }
 @media(max-width:680px) { .relations-grid { grid-template-columns:1fr;gap:10px; }.relation-card { padding:18px; }.relations-context { align-items:flex-start;flex-direction:column;gap:5px; } }
+
+/* Competitions: keep table labels attached to their rows and center expanded views. */
+.competition-table-scroll { flex:0 1 auto;max-height:584px;overflow:auto; }
+.competition-table-scroll .career-table-feature .career-standings-list,
+.competition-table-scroll .career-standings-list { flex:0 0 auto;width:100%;height:auto;max-height:none;overflow:visible; }
+.competition-table-scroll .career-zero-head { position:sticky;top:0;z-index:2;background:#111914; }
+.competition-panel.is-expanded { margin:auto;align-self:center; }
+.competition-panel.is-expanded .competition-table-scroll { width:min(100%,1100px);max-height:none;flex:1 1 auto;margin:auto; }
+.competition-panel.is-expanded .panel-kicker { width:min(100%,1100px);margin-inline:auto; }
+.competition-panel.is-expanded .competition-full-bracket { width:min(100%,1300px);max-height:calc(100% - 155px);margin:auto;justify-content:center;overflow:auto; }
+.competition-panel.is-expanded .competition-full-bracket .cup-round { min-width:190px; }
+.competition-full-bracket .cup-tie { min-width:0; }
+.competition-full-bracket .cup-tie-team { min-height:38px; }
+.competition-view-tabs { min-height:40px;padding:5px 12px;display:flex;justify-content:center;gap:5px;border-bottom:1px solid #ffffff15;background:#0a100db8; }
+.competition-view-tabs button { min-width:96px;padding:0 14px;border:1px solid #ffffff20;background:#ffffff06;color:#aab7a8;font-size:9px;font-weight:800;letter-spacing:.9px;cursor:pointer; }
+.competition-view-tabs button.is-active { border-color:#d5b4ff88;background:#794ab626;color:#eadbff; }
+@media(max-width:650px) {
+  .competition-table-scroll { max-height:584px; }
+  .competition-panel.is-expanded .competition-panel-toolbar { flex-wrap:wrap; }
+  .competition-panel.is-expanded .competition-full-bracket { max-height:calc(100% - 190px);justify-content:start; }
+}
+
+/* Competition sizing, modal centering, and calendar result emphasis. */
+.competition-panel--international { border-color:#bc88ff65;background:linear-gradient(145deg,#794ab61c,#111914ed 45%,#0b110eea); }
+.competition-panel-heading { min-height:64px;padding:10px 16px;display:flex;align-items:center;justify-content:space-between;gap:14px;border-bottom:1px solid #ffffff1d;background:#0c1410d9; }
+.competition-panel-heading>div { min-width:0; }
+.competition-panel-heading small { display:block;margin-bottom:4px;color:#9aa899;font-size:8px;font-weight:800;letter-spacing:1.1px; }
+.competition-panel-heading h2 { margin:0;overflow:hidden;color:#f0f4ec;font:600 23px/.95 "Barlow Condensed",sans-serif;letter-spacing:.6px;text-overflow:ellipsis;white-space:nowrap; }
+.competition-panel-heading>b { flex:0 0 auto;padding:7px 10px;border:1px solid #a4ee5540;background:#a4ee550c;color:#c9f39f;font-size:8px;letter-spacing:.8px; }
+.competition-panel--international .competition-panel-heading>b { border-color:#bc88ff55;background:#794ab61a;color:#e0caff; }
+.competition-panel.is-expanded { flex:none;width:min(100%,1450px);height:min(90vh,920px);height:min(90dvh,920px);align-self:center;margin:auto;grid-column:auto; }
+.competition-modal { display:flex;align-items:center;justify-content:center;overflow:auto; }
+.competition-panel.is-expanded .competition-panel-heading { width:min(100%,1100px);margin-inline:auto; }
+.competition-panel.is-expanded .competition-table-scroll { width:min(100%,1100px);max-height:none;flex:1 1 auto;margin:0 auto; }
+.competition-panel.is-expanded .competition-full-bracket { width:min(100%,1300px);max-height:none;flex:1 1 auto;margin:auto;align-content:center;justify-content:center; }
+.competition-panel.is-expanded .cup-round-matches { width:min(100%,1150px);grid-template-columns:repeat(2,minmax(0,1fr));margin:auto; }
+.calendar-fixture--win { position:relative;border:1px solid #59d88f90;border-left:4px solid #69d391;background:#0c1724a8;box-shadow:inset 0 0 0 1px #69d39125,0 0 9px #42ce7b24; }
+.calendar-fixture--loss { position:relative;border:1px solid #f174748c;border-left:4px solid #ff7777;background:#0c1724a8;box-shadow:inset 0 0 0 1px #ff777725,0 0 9px #e8515122; }
+.calendar-fixture--draw { position:relative;border:1px solid #dfc65e90;border-left:4px solid #e8d16a;background:#0c1724a8;box-shadow:inset 0 0 0 1px #e8d16a25,0 0 9px #dac14a20; }
+.calendar-fixture--win::before,.calendar-fixture--loss::before,.calendar-fixture--draw::before { position:absolute;inset:0;content:"";pointer-events:none; }
+.calendar-fixture--win::before { background:linear-gradient(105deg,#35d87985,#16814755 72%,#0c1724a0); }
+.calendar-fixture--loss::before { background:linear-gradient(105deg,#ed5b6580,#8e273b55 72%,#0c1724a0); }
+.calendar-fixture--draw::before { background:linear-gradient(105deg,#e6c54480,#90721c55 72%,#0c1724a0); }
+.calendar-fixture--win>.fixture-crests,.calendar-fixture--win>.fixture-info,.calendar-fixture--loss>.fixture-crests,.calendar-fixture--loss>.fixture-info,.calendar-fixture--draw>.fixture-crests,.calendar-fixture--draw>.fixture-info { position:relative;z-index:1; }
+.calendar-fixture--win .fixture-info small { color:#8cf0b0; }
+.calendar-fixture--loss .fixture-info small { color:#ffaaaa; }
+.calendar-fixture--draw .fixture-info small { color:#f0dc83; }
+.calendar-day.has-result-win { box-shadow:inset 0 0 0 2px #69d391; }
+.calendar-day.has-result-loss { box-shadow:inset 0 0 0 2px #ff7777; }
+.calendar-day.has-result-draw { box-shadow:inset 0 0 0 2px #e8d16a; }
+.calendar-day.has-result-win .calendar-day-number { color:#9af0b6; }
+.calendar-day.has-result-loss .calendar-day-number { color:#ffaaaa; }
+.calendar-day.has-result-draw .calendar-day-number { color:#f2df8d; }
+.calendar-card-scorers { font-size:11px;line-height:1.5; }
+.calendar-card-scorers span { overflow:visible;text-overflow:clip;white-space:normal;font-size:11px;line-height:1.45; }
+@media(max-width:650px) {
+  .competition-panel.is-expanded { width:100%;height:96vh;height:96dvh; }
+  .competition-panel-heading { padding:9px 11px; }
+  .competition-panel-heading h2 { font-size:20px; }
+  .competition-panel-heading>b { padding:6px 7px;font-size:7px; }
+}
+
+/* Home activity panel: energy, coach feedback, and relationship updates. */
+.career-activity-panel { min-width:0;min-height:540px;padding:16px;display:flex;flex-direction:column;gap:12px;overflow:hidden;border:1px solid #a4ee5530;background:radial-gradient(ellipse at 90% 0%,#354c2536,transparent 48%),linear-gradient(145deg,#142019f2,#0b110eea);box-shadow:0 16px 45px #0003; }
+.activity-panel-heading { display:flex;align-items:center;justify-content:space-between;gap:12px;padding:0 2px 9px;border-bottom:1px solid #ffffff1c; }
+.activity-panel-heading>div>span { color:#91a38b;font-size:10px;font-weight:800;letter-spacing:1.1px; }
+.activity-panel-heading h2 { margin:4px 0 0;color:#eff4e9;font:600 28px/.98 "Barlow Condensed",sans-serif;letter-spacing:.7px; }
+.activity-panel-heading>b { width:40px;height:40px;display:grid;place-items:center;border:1px solid #a4ee5550;background:#a4ee550d;color:var(--green);font:600 15px "Oswald",sans-serif; }
+.activity-energy { padding:12px 14px;border:1px solid #ffffff19;background:#080e0bb5; }
+.activity-energy>div { display:flex;align-items:center;justify-content:space-between;gap:8px;color:#a7b4a2;font-size:11px;font-weight:800;letter-spacing:.9px; }
+.activity-energy>div>strong { color:#d9f7be;font:700 23px "Oswald",sans-serif; }
+.activity-energy>i,.activity-social-card>i { height:8px;display:block;margin:8px 0;overflow:hidden;background:#ffffff15; }
+.activity-energy>i>u,.activity-social-card>i>u { height:100%;display:block;background:linear-gradient(90deg,#d6aa4b,#a4ee55);transition:width .35s ease; }
+.activity-energy>small { color:#a1af9d;font-size:10px;line-height:1.45; }
+.activity-coach { min-height:118px;padding:12px 14px;border:1px solid #a4ee5530;border-left:3px solid #a4ee55;background:#a4ee5509; }
+.activity-coach--0,.activity-coach--pending { border-color:#e78d7945;border-left-color:#e78d79;background:#e78d790a; }
+.activity-coach--1 { border-color:#d5bd6845;border-left-color:#d5bd68;background:#d5bd6809; }
+.activity-section-label { min-width:0;display:flex;align-items:center;gap:7px; }
+.activity-section-label>span { color:#bce58d;font-size:18px; }
+.activity-section-label>b { overflow:hidden;color:#ced9ca;font-size:10px;font-weight:900;letter-spacing:.8px;text-overflow:ellipsis;white-space:nowrap; }
+.activity-section-label>em { flex:0 0 auto;margin-left:auto;color:#a4ee55;font:700 13px "Oswald",sans-serif;font-style:normal; }
+.activity-coach--0 .activity-section-label>span,.activity-coach--0 .activity-section-label>em,.activity-coach--pending .activity-section-label>span,.activity-coach--pending .activity-section-label>em { color:#efaa94; }
+.activity-coach--1 .activity-section-label>em { color:#e6d27e; }
+.activity-coach h3 { margin:8px 0 5px;color:#f1f4ec;font:600 20px/1.05 "Barlow Condensed",sans-serif; }
+.activity-coach p,.activity-social-card p { margin:0;color:#b5c1b0;font-size:11px;line-height:1.45; }
+.activity-social-grid { flex:1;min-height:125px;display:grid;grid-template-columns:1fr 1fr;gap:10px; }
+.activity-social-card { min-width:0;padding:11px 12px;border:1px solid #ffffff1b;background:#0b120ee0; }
+.activity-social-card>i { height:5px;margin:8px 0; }
+.activity-social-card>i>u { background:#79a968; }
+.activity-social-card.activity-relation--0 { border-color:#eb837b55; }
+.activity-social-card.activity-relation--0 .activity-section-label>span,.activity-social-card.activity-relation--0 .activity-section-label>em { color:#f0958e; }
+.activity-social-card.activity-relation--0>i>u { background:#e47772; }
+.activity-social-card.activity-relation--1 { border-color:#d1b75b50; }
+.activity-social-card.activity-relation--1 .activity-section-label>span,.activity-social-card.activity-relation--1 .activity-section-label>em { color:#e1c86b; }
+.activity-social-card.activity-relation--1>i>u { background:#d1b75b; }
+.activity-social-card.activity-relation--2 { border-color:#9bcb6650; }
+.activity-social-card.activity-relation--2 .activity-section-label>span,.activity-social-card.activity-relation--2 .activity-section-label>em { color:#b4e77a; }
+.activity-social-card.activity-relation--2>i>u { background:#9bcb66; }
+.activity-social-card.activity-relation--3 { border-color:#71d79b66;background:linear-gradient(145deg,#1b483033,#0b120ee0); }
+.activity-social-card.activity-relation--3 .activity-section-label>span,.activity-social-card.activity-relation--3 .activity-section-label>em { color:#78e9a4; }
+.activity-social-card.activity-relation--3>i>u { background:#6ee39a; }
+.activity-training-link { min-height:40px;padding:0 13px;display:flex;align-items:center;justify-content:space-between;border:1px solid #a4ee5540;background:#a4ee550c;color:#c9edac;font-size:10px;font-weight:900;letter-spacing:.8px;cursor:pointer; }
+.activity-training-link:hover { border-color:#a4ee55a0;background:#a4ee5518; }
+.activity-training-link>b { color:var(--green);font-size:14px; }
+@media(max-width:650px) {
+  .career-left-stack { grid-template-rows:150px minmax(560px,auto); }
+  .career-activity-panel { min-height:560px;padding:14px;gap:10px; }
+  .activity-panel-heading h2 { font-size:25px; }
+  .activity-coach { min-height:118px; }
+}
+@media(max-width:390px) { .career-left-stack { grid-template-rows:150px minmax(690px,auto); }.career-activity-panel { min-height:690px; }.activity-social-grid { grid-template-columns:1fr; }.activity-social-card p { font-size:11px; } }
