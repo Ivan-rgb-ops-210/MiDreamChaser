@@ -59,10 +59,15 @@ export async function logoutCareer() {
 export async function loadCareerProfile(token) {
   const { data, error } = await supabase.rpc("dreamchaser_load_player_profile", { p_session_token: token });
   if (error) throw error;
-  return data || null;
+  if (!data) return null;
+  try {
+    const savedStats = JSON.parse(localStorage.getItem(`dreamchaser.training-stats.${data.createdAt || data.team?.id || data.name || "career"}`) || "{}");
+    return { ...data, stats: Object.fromEntries(Object.entries({ ...data.stats, ...savedStats }).map(([key, value]) => [key, Math.max(Number(data.stats?.[key]) || 0, Number(value) || 0)])) };
+  } catch { return data; }
 }
 
 export async function saveCareerProfile(token, profile) {
+  try { localStorage.setItem(`dreamchaser.training-stats.${profile.createdAt || profile.team?.id || profile.name || "career"}`, JSON.stringify(profile.stats || {})); } catch { /* El perfil remoto sigue siendo la fuente principal. */ }
   const { error } = await supabase.rpc("dreamchaser_save_player_profile", {
     p_session_token: token,
     p_profile: profile,

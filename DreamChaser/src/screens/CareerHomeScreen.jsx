@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Stadium } from "../components/Brand.jsx";
+import TrainingScreen, { TrainingResultScreen } from "./TrainingScreen.jsx";
+import MatchChallenge from "./MatchChallenge.jsx";
 import "../transfer.css";
 
 const NAV_ITEMS = [
@@ -99,7 +101,7 @@ function makeLineup(teamName, user, isUserTeam, roster = []) {
   }
   return { teamName, players };
 }
-function simulateMatch({ home, away, userTeam, playerName, homeRoster, awayRoster, homeStarters, awayStarters, tempo, seedText, energy, firstHalfAdded, secondHalfAdded }) {
+function simulateMatch({ home, away, userTeam, playerName, homeRoster, awayRoster, homeStarters, awayStarters, tempo, seedText, energy, firstHalfAdded, secondHalfAdded, stats = {} }) {
   const random = seededRandom(seedText);
   const events = [];
   let homeGoals = 0; let awayGoals = 0; let userGoals = 0; let userAssists = 0; let userShots = 0; let userRating = 6.2;
@@ -111,18 +113,28 @@ function simulateMatch({ home, away, userTeam, playerName, homeRoster, awayRoste
   const awayBench = namesFrom(awayRoster).filter((name) => !awayNames.includes(name));
   const userOnHome = String(userTeam?.id) === String(home?.id);
   const userSideNames = userOnHome ? homeNames : awayNames;
-  const userChanceBoost = (tempo === "sacrificado" ? 1.55 : tempo === "competitivo" ? 1.22 : 1) * clamp(energy / 100, .45, 1);
+  const userChanceBoost = tempo === "sacrificado" ? 2.15 : tempo === "competitivo" ? 1.45 : .82;
+  const personalShare = tempo === "sacrificado" ? .34 : tempo === "competitivo" ? .23 : .13;
+  const challengeCount = tempo === "sacrificado" ? 7 : tempo === "competitivo" ? 5 : 3;
+  const playerExitMinute = tempo === "regulado" ? Infinity : (Number(energy) || 0) / 100 * (tempo === "sacrificado" ? 55 : 90);
+  const challengeSkills = ["pace", "shooting", "passing", "dribbling", "physical", "defense"];
+  const weights = challengeSkills.map((key) => Math.max(1, Number(stats[key]) || 50));
+  const weightedSkill = () => { let pick = random() * weights.reduce((sum, weight) => sum + weight, 0); for (let i = 0; i < weights.length; i += 1) { pick -= weights[i]; if (pick <= 0) return challengeSkills[i]; } return challengeSkills[0]; };
+  const challengeTicks = Array.from({ length: challengeCount }, (_, index) => Math.round((14 + index * (70 / challengeCount) + random() * 8) * (90 + firstHalfAdded + secondHalfAdded) / 90));
+  challengeTicks.forEach((tick, index) => events.push({ minute: matchClockLabel(tick, firstHalfAdded), tick, side: userSide, team: userTeam?.shortName || userTeam?.name || "Tu equipo", type: "challenge", skill: weightedSkill(), involved: [playerName], message: "Tu oportunidad: resolvé la jugada." }));
   const duration = 90 + firstHalfAdded + secondHalfAdded;
   for (let tick = 1; tick <= duration; tick += 1) {
     if (random() < .20) {
       const minute = matchClockLabel(tick, firstHalfAdded);
+      const playerActive = regulationMinute(tick, firstHalfAdded) <= playerExitMinute;
       const side = random() < (userSide === "home" ? .52 : .48) ? "home" : "away";
       const ownTeam = side === "home" ? home : away;
       const ownNames = side === "home" ? homeNames : awayNames;
       if (!ownNames.length) continue;
-      const actors = ownNames;
+      const actors = ownNames.filter((name) => playerActive || name !== playerName);
+      if (!actors.length) continue;
       let actor = actors[Math.floor(random() * actors.length)];
-      if (side === userSide && ownNames.includes(playerName) && random() < clamp(.09 * userChanceBoost, .04, .24)) actor = playerName;
+      if (side === userSide && playerActive && ownNames.includes(playerName) && random() < personalShare) actor = playerName;
       const roll = random();
       let type; let message; let involved = [actor];
       if (roll < .42) {
@@ -132,8 +144,8 @@ function simulateMatch({ home, away, userTeam, playerName, homeRoster, awayRoste
         type = "danger"; message = random() < .22 ? `${actor} estrella el remate en el palo.` : `${actor} saca un remate muy cercano que pasa junto al poste.`;
         if (actor === playerName) { userShots += 1; userRating += .25; }
       } else if (roll < .72) {
-        const scorer = side === userSide && ownNames.includes(playerName) && random() < clamp(.25 * userChanceBoost, .12, .5) ? playerName : actor;
-        const assist = scorer === playerName ? (userSideNames.find((name) => name !== playerName) || playerName) : (side === userSide && random() < .15 ? playerName : ownNames[Math.floor(random() * ownNames.length)]);
+        const scorer = side === userSide && playerActive && ownNames.includes(playerName) && actor === playerName && random() < clamp(.12 * userChanceBoost, .08, .28) ? playerName : actor;
+        const assist = scorer === playerName ? (userSideNames.find((name) => name !== playerName) || playerName) : (side === userSide && playerActive && random() < .15 ? playerName : ownNames[Math.floor(random() * ownNames.length)]);
         type = "goal"; involved = [scorer, assist]; message = `${scorer} define tras una buena combinación. Asiste ${assist}.`;
         if (scorer === playerName) userShots += 1;
         if (side === "home") homeGoals += 1; else awayGoals += 1;
@@ -246,7 +258,7 @@ function simulateOtherFixture(match) {
   return { ...match, status: "FINISHED", homeScore, awayScore, scorers: [...scorerNames(match.homeTeam, homeScore), ...scorerNames(match.awayTeam, awayScore)].sort((a, b) => a.minute - b.minute) };
 }
 
-export default function CareerHomeScreen({ profile, screenPath = "/career", onNavigate = () => {}, onDeletePlayer = async () => {}, onExit }) {
+export default function CareerHomeScreen({ profile, screenPath = "/career", onNavigate = () => {}, onDeletePlayer = async () => {}, onUpdateProfile = async () => {}, onExit }) {
   const [section, setSection] = useState("home");
   const contractKey = salaryKeyFor(profile);
   const [contract, setContract] = useState(() => { try { const saved = JSON.parse(localStorage.getItem(contractKey)); return saved ? { ...initialContractFor(profile), ...saved } : initialContractFor(profile); } catch { return initialContractFor(profile); } });
@@ -299,8 +311,13 @@ export default function CareerHomeScreen({ profile, screenPath = "/career", onNa
   const [summaryVisibleCount, setSummaryVisibleCount] = useState(0);
   const visibleSection = screenPath === "/match" || screenPath === "/match-summary" ? "play" : section === "play" ? "home" : section;
   const [matchResult, setMatchResult] = useState(null);
+  const [matchChallenge, setMatchChallenge] = useState(null);
   const energyKey = `dreamchaser.energy.${profile?.createdAt || profile?.name || "career"}`;
   const [energy, setEnergy] = useState(() => { try { return clamp(Number(localStorage.getItem(energyKey) || 100), 0, 100); } catch { return 100; } });
+  const trainingUsedKey = `dreamchaser.training-used.${profile?.createdAt || profile?.name || "career"}`;
+  const [trainingUsed, setTrainingUsed] = useState(() => { try { return localStorage.getItem(trainingUsedKey) === "true"; } catch { return false; } });
+  const [trainingState, setTrainingState] = useState(null);
+  const [trainingResult, setTrainingResult] = useState(null);
   const matchdayFeedRef = useRef(null);
   const followMatchEvents = useRef(true);
   const leagueName = profile?.league?.name || "Liga por definir";
@@ -474,13 +491,14 @@ export default function CareerHomeScreen({ profile, screenPath = "/career", onNa
   const displayedHomeLineup = { ...homeLineup, players: liveHomeXI || homeLineup.players };
   const displayedAwayLineup = { ...awayLineup, players: liveAwayXI || awayLineup.players };
   const liveMatchStats = useMemo(() => getLiveMatchStats(matchResult, matchEvents, matchProgress, regulationMinute(matchMinute, firstHalfAdded)), [matchResult, matchEvents, matchProgress, matchMinute, firstHalfAdded]);
-  const matchDrain = matchTempo === "sacrificado" ? 35 : matchTempo === "competitivo" ? 24 : 15;
+  const matchDrain = matchTempo === "regulado" ? 70 : matchTempo === "sacrificado" ? 160 : 100;
   const playerEnergy = matchMode === "simulation" ? clamp(energy - matchDrain * regulationMinute(matchMinute, firstHalfAdded) / 90, 0, 100) : energy;
   useEffect(() => {
     const feed = matchdayFeedRef.current;
     if (feed && followMatchEvents.current) feed.scrollTop = feed.scrollHeight;
   }, [matchProgress, matchMinute, activeMatchEvent, matchMode]);
   useEffect(() => { try { localStorage.setItem(energyKey, String(energy)); } catch { /* Storage can be unavailable in private browsing. */ } }, [energy, energyKey]);
+  useEffect(() => { try { localStorage.setItem(trainingUsedKey, String(trainingUsed)); } catch {} }, [trainingUsed, trainingUsedKey]);
   useEffect(() => { try { localStorage.setItem(resultsKey, JSON.stringify(savedResults)); } catch { /* Storage can be unavailable in private browsing. */ } }, [resultsKey, savedResults]);
   useEffect(() => {
     const playedMatchId = matchResult?.matchId;
@@ -502,7 +520,7 @@ export default function CareerHomeScreen({ profile, screenPath = "/career", onNa
   }, [matchMode, matchResult]);
   useEffect(() => {
     if (matchMode !== "simulation") return undefined;
-    if (paused || halftime) return undefined;
+    if (paused || halftime || matchChallenge) return undefined;
     if (activeMatchEvent) {
       const pause = setTimeout(() => setActiveMatchEvent(null), 2600);
       return () => clearTimeout(pause);
@@ -516,16 +534,29 @@ export default function CareerHomeScreen({ profile, screenPath = "/career", onNa
     if (matchMinute >= matchDuration) {
       setMatchMode("finished");
       setPaused(false);
-      setEnergy((current) => clamp(current - matchDrain, 5, 100));
+      setEnergy(100);
+      setTrainingUsed(false);
       return undefined;
     }
     const timer = setTimeout(() => {
       const nextMinute = matchMinute + 1;
       setMatchMinute(nextMinute);
+      const energyAtNextMinute = clamp(energy - (matchDrain / 90) * regulationMinute(nextMinute, firstHalfAdded), 0, 100);
+      if (energyAtNextMinute === 0) {
+        const replaceUser = (lineup, roster) => {
+          if (!lineup?.some((player) => player.isUser)) return lineup;
+          const replacement = roster.find((player) => !lineup.some((starter) => starter.name === player.name));
+          if (!replacement) return lineup.filter((player) => !player.isUser);
+          return lineup.map((player) => player.isUser ? { ...player, name: replacement.name, isUser: false, number: replacement.shirtNumber || "–" } : player);
+        };
+        setLiveHomeXI((lineup) => replaceUser(lineup, homeRoster));
+        setLiveAwayXI((lineup) => replaceUser(lineup, awayRoster));
+      }
       const event = matchEvents[matchProgress];
       if (event?.tick === nextMinute) {
-        setActiveMatchEvent(event);
         setMatchProgress((current) => current + 1);
+        if (event.type === "challenge") setMatchChallenge(event);
+        else setActiveMatchEvent(event);
         if (event.scoreDelta) setLiveScore((score) => ({ ...score, [event.side]: score[event.side] + 1 }));
         if (event.type === "sub" && event.involved?.length === 2) {
           const [outgoing, incoming] = event.involved;
@@ -536,7 +567,7 @@ export default function CareerHomeScreen({ profile, screenPath = "/career", onNa
       }
     }, 1000 / matchSpeed);
     return () => clearTimeout(timer);
-  }, [matchMode, matchMinute, matchEvents, matchProgress, activeMatchEvent, matchSpeed, paused, halftime, halftimeDone, firstHalfAdded, secondHalfAdded, matchDrain]);
+  }, [matchMode, matchMinute, matchEvents, matchProgress, activeMatchEvent, matchChallenge, matchSpeed, paused, halftime, halftimeDone, firstHalfAdded, secondHalfAdded, matchDrain, energy, homeRoster, awayRoster]);
   function startMatch() {
     const home = nextMatch?.homeTeam || profile?.team;
     const away = nextMatch?.awayTeam || { id: "opponent", name: "Rival", shortName: "Rival" };
@@ -547,10 +578,24 @@ export default function CareerHomeScreen({ profile, screenPath = "/career", onNa
     const secondAdded = 2 + Math.floor(extraTimeRandom() * 4);
     const startingHome = homeLineup.players;
     const startingAway = awayLineup.players;
-    const result = { ...simulateMatch({ home, away, userTeam: profile?.team, playerName: profile?.name || "Jugador", homeRoster, awayRoster, homeStarters: startingHome, awayStarters: startingAway, tempo: matchTempo, energy, seedText, firstHalfAdded: firstAdded, secondHalfAdded: secondAdded }), matchId: nextMatch?.id };
+    const result = { ...simulateMatch({ home, away, userTeam: profile?.team, playerName: profile?.name || "Jugador", homeRoster, awayRoster, homeStarters: startingHome, awayStarters: startingAway, tempo: matchTempo, energy, stats: profile?.stats, seedText, firstHalfAdded: firstAdded, secondHalfAdded: secondAdded }), matchId: nextMatch?.id };
     followMatchEvents.current = true;
     setFirstHalfAdded(firstAdded); setSecondHalfAdded(secondAdded); setLiveScore({ home: 0, away: 0 }); setPaused(false); setHalftime(false); setHalftimeDone(false);
-    setLiveHomeXI(startingHome); setLiveAwayXI(startingAway); setMatchResult(result); setMatchEvents(result.events); setMatchProgress(0); setMatchMinute(0); setActiveMatchEvent(null); setMatchMode("simulation"); onNavigate("/match");
+    setLiveHomeXI(startingHome); setLiveAwayXI(startingAway); setMatchResult(result); setMatchEvents(result.events); setMatchProgress(0); setMatchMinute(0); setActiveMatchEvent(null); setMatchChallenge(null); setMatchMode("simulation"); onNavigate("/match");
+  }
+
+  function resolveMatchChallenge(success, quality = 0) {
+    const challenge = matchChallenge;
+    if (!challenge) return;
+    const names = { pace: "Ritmo", shooting: "Tiro", passing: "Pase", dribbling: "Regate", physical: "Físico", defense: "Defensa" };
+    let outcome = success ? "Superaste el desafío." : "La jugada no salió.";
+    let scoreDelta = 0;
+    if (success && challenge.skill === "shooting" && Math.random() < .18) { scoreDelta = 1; outcome = "¡Gol! Definición precisa en una oportunidad difícil."; }
+    else if (success && challenge.skill === "passing" && Math.random() < .22) { outcome = "Pase clave: tu compañero convierte la ocasión."; scoreDelta = 1; }
+    setMatchResult((current) => current ? { ...current, homeGoals: current.homeGoals + (scoreDelta && challenge.side === "home" ? 1 : 0), awayGoals: current.awayGoals + (scoreDelta && challenge.side === "away" ? 1 : 0), userGoals: current.userGoals + (challenge.skill === "shooting" ? scoreDelta : 0), userAssists: current.userAssists + (challenge.skill === "passing" ? scoreDelta : 0), userShots: current.userShots + (challenge.skill === "shooting" ? 1 : 0), userRating: clamp(current.userRating + (success ? .18 + quality * .2 : -.04), 4.8, 10) } : current);
+    setLiveScore((current) => ({ ...current, [challenge.side]: current[challenge.side] + scoreDelta }));
+    setActiveMatchEvent({ ...challenge, type: scoreDelta ? "goal" : "shot", message: `${names[challenge.skill]}: ${outcome}`, minute: challenge.minute, tick: challenge.tick });
+    setMatchChallenge(null);
   }
 
   useEffect(() => {
@@ -602,11 +647,11 @@ export default function CareerHomeScreen({ profile, screenPath = "/career", onNa
           <p>{currentMatch?.competitionName || leagueName} · {currentMatch ? new Intl.DateTimeFormat("es-AR", { weekday: "long", day: "numeric", month: "long" }).format(new Date(currentMatch.utcDate)) : "TEMPORADA"}</p>
         </header>
         <div className="matchday-controls">
-          {matchMode === "preview" ? <><label>RITMO<select value={matchTempo} onChange={(event) => setMatchTempo(event.target.value)}><option value="regulado">Regulado</option><option value="competitivo">Competitivo</option><option value="sacrificado">Sacrificado</option></select></label><span className="tempo-note">{matchTempo === "regulado" ? "Menor desgaste · menos protagonismo" : matchTempo === "competitivo" ? "Rendimiento y desgaste equilibrados" : "Más ocasiones personales · mayor desgaste"}</span><button className="simulate-match-button" onClick={startMatch}>SIMULAR PARTIDO <b>▶</b></button></> : <><span className="live-label">{matchMode === "finished" ? "PARTIDO FINALIZADO" : paused ? "SIMULACIÓN PAUSADA" : `EN JUEGO · ${matchTempo.toUpperCase()}`}</span><div className="speed-control"><span>VELOCIDAD</span>{[1, 2, 3].map((speed) => <button key={speed} className={matchSpeed === speed ? "is-selected" : ""} onClick={() => setMatchSpeed(speed)}>x{speed}</button>)}{matchMode === "simulation" && !halftime && <button className="match-pause-button" onClick={() => setPaused((value) => !value)}>{paused ? "▶ CONTINUAR" : "Ⅱ PAUSAR"}</button>}</div></>}
+          {matchMode === "preview" ? <><label>RITMO<select value={matchTempo} onChange={(event) => setMatchTempo(event.target.value)}><option value="regulado">Regulado</option><option value="competitivo">Normal</option><option value="sacrificado">Sacrificado</option></select></label><span className="tempo-note">{matchTempo === "regulado" ? "Menos acciones · podés terminar incluso después de entrenar" : matchTempo === "competitivo" ? "Más acciones · con menos de 100% salís antes del final" : "Muchas acciones · el DT te reemplazará antes del final"}</span><button className="simulate-match-button" onClick={startMatch}>SIMULAR PARTIDO <b>▶</b></button></> : <><span className="live-label">{matchMode === "finished" ? "PARTIDO FINALIZADO" : paused ? "SIMULACIÓN PAUSADA" : `EN JUEGO · ${matchTempo === "competitivo" ? "NORMAL" : matchTempo.toUpperCase()}`}</span><div className="speed-control"><span>VELOCIDAD</span>{[1, 2, 3].map((speed) => <button key={speed} className={matchSpeed === speed ? "is-selected" : ""} onClick={() => setMatchSpeed(speed)}>x{speed}</button>)}{matchMode === "simulation" && !halftime && <button className="match-pause-button" onClick={() => setPaused((value) => !value)}>{paused ? "▶ CONTINUAR" : "Ⅱ PAUSAR"}</button>}</div></>}
         </div>
         <div className="matchday-layout">
           {[displayedHomeLineup, displayedAwayLineup].map((lineup, teamIndex) => <aside className={`matchday-lineup ${teamIndex === 1 ? "matchday-lineup--away" : ""}`} key={lineup.teamName}><h3><span>{teamIndex === 0 ? "LOCAL" : "VISITANTE"}</span>{lineup.teamName}</h3>{FORMATIONS.map(([position]) => <section className="matchday-position" key={position}><b>{position === "ARQ" ? "ARQUEROS" : position === "DEF" ? "DEFENSORES" : position === "MED" ? "MEDIOCAMPISTAS" : "DELANTEROS"}</b>{lineup.players.filter((player) => player.position === position).map((player) => <div className={`matchday-player ${player.isUser ? "is-user-player" : ""}`} key={`${player.number}-${player.name}`}><span>{player.number}</span><strong>{player.name}</strong>{player.isUser && <em>TÚ</em>}</div>)}</section>)}</aside>)}
-          <section className="matchday-pitch" aria-label="Relato de jugadas sobre la cancha"><div className="matchday-pitch-lines"><i className="pitch-box pitch-box--left"/><i className="pitch-box pitch-box--right"/><i className="pitch-midline"/></div><div className="matchday-feed" ref={matchdayFeedRef} onScroll={(event) => { const feed = event.currentTarget; followMatchEvents.current = feed.scrollHeight - feed.scrollTop - feed.clientHeight < 60; }} aria-live="polite">{matchMode === "preview" ? <div className="feed-intro"><b>TODO LISTO PARA EL PARTIDO</b><span>Las jugadas aparecerán acá durante la simulación.</span></div> : <><div className="matchday-minute-marker">{matchMode === "finished" ? "FINAL DEL PARTIDO" : <>MINUTO <strong>{matchClockLabel(matchMinute, firstHalfAdded)}</strong> · {paused ? "PAUSADO" : matchMode === "simulation" ? "EN JUEGO" : "FINAL"}</>}</div>{matchEvents.slice(0, matchProgress).map((event) => <div className={`matchday-event matchday-event--${event.side} matchday-event--${event.type}`} key={`${event.minute}-${event.type}`}><b>{event.minute}</b><span><strong>{event.team}</strong>{event.message}</span></div>)}{matchMode === "simulation" && matchProgress === 0 && <div className="feed-intro">El árbitro está por dar inicio…</div>}</>}</div>          {activeMatchEvent && <div className="matchday-event-overlay" role="status" aria-live="assertive"><article key={`${activeMatchEvent.tick}-${activeMatchEvent.type}`} className={`matchday-event-banner matchday-event-banner--${activeMatchEvent.type} ${activeMatchEvent.side === "away" ? "is-away" : ""}`}><span className="event-banner-icon">{activeMatchEvent.type === "goal" ? "⚽" : activeMatchEvent.type === "card" ? "▰" : activeMatchEvent.type === "penalty" ? "◉" : activeMatchEvent.type === "sub" ? "↔" : activeMatchEvent.type === "shot" ? "➤" : "!"}</span><small>{activeMatchEvent.minute} · {activeMatchEvent.team}</small><b>{activeMatchEvent.type === "goal" ? "¡GOOOL!" : activeMatchEvent.type === "card" ? (activeMatchEvent.message.includes("roja") ? "TARJETA ROJA" : "TARJETA AMARILLA") : activeMatchEvent.type === "penalty" ? "PENAL" : activeMatchEvent.type === "sub" ? "SUSTITUCIÓN" : activeMatchEvent.type === "foul" ? "FALTA" : activeMatchEvent.type === "shot" ? "REMATE" : "¡OCASIÓN PELIGROSA!"}</b><p>{activeMatchEvent.message}</p></article></div>}</section>
+          <section className="matchday-pitch" aria-label="Relato de jugadas sobre la cancha"><div className="matchday-pitch-lines"><i className="pitch-box pitch-box--left"/><i className="pitch-box pitch-box--right"/><i className="pitch-midline"/></div><div className="matchday-feed" ref={matchdayFeedRef} onScroll={(event) => { const feed = event.currentTarget; followMatchEvents.current = feed.scrollHeight - feed.scrollTop - feed.clientHeight < 60; }} aria-live="polite">{matchMode === "preview" ? <div className="feed-intro"><b>TODO LISTO PARA EL PARTIDO</b><span>Las jugadas aparecerán acá durante la simulación.</span></div> : <><div className="matchday-minute-marker">{matchMode === "finished" ? "FINAL DEL PARTIDO" : <>MINUTO <strong>{matchClockLabel(matchMinute, firstHalfAdded)}</strong> · {paused ? "PAUSADO" : matchMode === "simulation" ? "EN JUEGO" : "FINAL"}</>}</div>{matchEvents.slice(0, matchProgress).map((event, index) => <div className={`matchday-event matchday-event--${event.side} matchday-event--${event.type}`} key={`${event.minute}-${event.type}-${index}`}><b>{event.minute}</b><span><strong>{event.team}</strong>{event.message}</span></div>)}{matchMode === "simulation" && matchProgress === 0 && <div className="feed-intro">El árbitro está por dar inicio…</div>}</>}</div>{matchChallenge && <MatchChallenge challenge={matchChallenge} onResolve={resolveMatchChallenge}/>}          {activeMatchEvent && <div className="matchday-event-overlay" role="status" aria-live="assertive"><article key={`${activeMatchEvent.tick}-${activeMatchEvent.type}`} className={`matchday-event-banner matchday-event-banner--${activeMatchEvent.type} ${activeMatchEvent.side === "away" ? "is-away" : ""}`}><span className="event-banner-icon">{activeMatchEvent.type === "goal" ? "⚽" : activeMatchEvent.type === "card" ? "▰" : activeMatchEvent.type === "penalty" ? "◉" : activeMatchEvent.type === "sub" ? "↔" : activeMatchEvent.type === "shot" ? "➤" : "!"}</span><small>{activeMatchEvent.minute} · {activeMatchEvent.team}</small><b>{activeMatchEvent.type === "goal" ? "¡GOOOL!" : activeMatchEvent.type === "card" ? (activeMatchEvent.message.includes("roja") ? "TARJETA ROJA" : "TARJETA AMARILLA") : activeMatchEvent.type === "penalty" ? "PENAL" : activeMatchEvent.type === "sub" ? "SUSTITUCIÓN" : activeMatchEvent.type === "foul" ? "FALTA" : activeMatchEvent.type === "shot" ? "REMATE" : "¡OCASIÓN PELIGROSA!"}</b><p>{activeMatchEvent.message}</p></article></div>}</section>
 
           {halftime && <div className="matchday-intermission-overlay"><section><span>DESCANSO</span><h2>{homeLineup.teamName} <b>{liveScore.home} – {liveScore.away}</b> {awayLineup.teamName}</h2><p>Fin del primer tiempo · {firstHalfAdded}′ de tiempo añadido</p><button onClick={() => { setHalftimeDone(true); setHalftime(false); }}>COMENZAR SEGUNDO TIEMPO <b>→</b></button></section></div>}
         </div>
@@ -621,7 +666,7 @@ export default function CareerHomeScreen({ profile, screenPath = "/career", onNa
         ].map((stat, index) => index < summaryVisibleCount && <article className={`player-summary-stat ${index === 3 ? "player-summary-stat--rating" : ""}`} key={stat.label} style={{ animationDelay: `${index * 35}ms` }}><div><span>{stat.label}</span>{index < 3 && <small>{stat.note}</small>}{index === 3 && <small>RENDIMIENTO DEL PARTIDO</small>}</div><AnimatedStatValue value={stat.value} decimals={index === 3 ? 1 : 0}/>{index === 3 && <p className="coach-message">{matchResult?.userRating >= 8 ? "Gran partido. Fuiste decisivo y marcaste la diferencia." : matchResult?.userRating >= 7 ? "Buen trabajo. Tu aporte fue importante para el equipo." : matchResult?.userRating >= 6 ? "Partido correcto. Seguí trabajando para influir más en el juego." : "No fue tu mejor tarde. Entrená y tendrás una nueva oportunidad."}</p>}</article>)}</div>{summaryVisibleCount === 4 && <button className="summary-return-button" onClick={() => { setMatchMode("preview"); setSection("home"); onNavigate("/career"); }}>VOLVER A LA CARRERA <b>✓</b></button>}</section>}
       </article>
       <footer className="career-footer"><span>UNA CARRERA. INFINITAS HISTORIAS.</span><span>TEMPORADA {seasonLabel}</span></footer>
-    </section> : visibleSection === "calendar" ? <section className="career-home-content career-section-view">
+    </section> : visibleSection === "training" ? <TrainingScreen profile={profile} energy={energy} trainingUsed={trainingUsed} onBack={() => setSection("home")} onStart={(skill) => setTrainingState({ skill, startedAt: Date.now() })} trainingState={trainingState} onComplete={async ({ skill, points, energyCost }) => { const before = Number(profile.stats?.[skill] || 0); const after = clamp(before + points, 0, 100); setEnergy((value) => clamp(value - energyCost, 0, 100)); setTrainingUsed(true); setTrainingState(null); setSection("training-result"); setTrainingResult({ skill, points, before, after }); if (points) await onUpdateProfile({ ...profile, stats: { ...profile.stats, [skill]: after } }); }} /> : section === "training-result" ? <TrainingResultScreen result={trainingResult} onBack={() => { setSection("training"); onNavigate("/career"); }} /> : visibleSection === "calendar" ? <section className="career-home-content career-section-view">
       <div className="calendar-layout">
         <div className="calendar-main">
           <header className="calendar-title"><div><span className="career-eyebrow">MODO CARRERA · {leagueName.toUpperCase()}</span><h1>CALENDARIO <span>{profile?.league?.emblem ? <img src={profile.league.emblem} alt="" /> : "DC"}</span></h1></div><div className="calendar-controls"><button aria-label="Mes anterior" onClick={() => changeCalendarMonth(-1)}>‹</button><button aria-label="Mes siguiente" onClick={() => changeCalendarMonth(1)}>›</button></div></header>
