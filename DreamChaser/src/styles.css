@@ -1856,6 +1856,71 @@ footer > span {
 .calendar-controls { display:flex;gap:6px; }
 .calendar-controls button { width:34px;height:34px;border:1px solid #ffffff30;background:#101914a8;color:#e1e9dd;font-size:22px;line-height:1;cursor:pointer;transition:.18s; }
 .calendar-controls button:hover { border-color:var(--green);background:#a4ee5522;color:var(--green); }
+.calendar-controls .next-season-button { width:auto;padding:0 11px;color:#bce58d;font-size:8px;letter-spacing:.4px; }
+.calendar-controls button:disabled { opacity:.35;cursor:not-allowed; }
+.champions-table { max-height:370px;overflow:auto;margin:12px 0;border:1px solid #ffffff20;background:#0c1511a8; }
+.champions-table>div { min-height:31px;padding:5px 9px;display:grid;grid-template-columns:26px minmax(0,1fr) 42px 48px;align-items:center;gap:7px;border-bottom:1px solid #ffffff12;color:#9ba99c;font-size:8px; }
+.champions-table>div:last-child { border-bottom:0; }
+.champions-table>div.is-player-team { background:#a4ee5518;color:#e3f2d7; }
+.champions-table>div>b { overflow:hidden;color:#e4eae1;text-overflow:ellipsis;white-space:nowrap; }
+.champions-table>div>strong { color:#bce58d;text-align:right; }
+.competition-panel { position:relative;min-width:0;min-height:500px; }
+.competition-panel-toolbar { min-width:0;padding:10px 12px;display:flex;align-items:center;justify-content:space-between;gap:10px;border-bottom:1px solid #ffffff16;background:#080e0bb0; }
+.competition-picker-inline { min-width:0;display:flex;align-items:center;gap:6px;overflow-x:auto;scrollbar-width:none; }
+.competition-picker-inline::-webkit-scrollbar { display:none; }
+.competition-picker-inline .competition-choice { flex:0 0 auto;min-height:31px;padding:0 10px;font-size:9px; }
+.competition-expand { flex:0 0 auto;min-height:32px;padding:0 10px;display:flex;align-items:center;gap:8px;border:1px solid #ffffff2b;background:#ffffff08;color:#dce6d8;font-size:8px;font-weight:800;letter-spacing:.7px;cursor:pointer; }
+.competition-expand:hover { border-color:#a4ee5580;color:#c9f39f; }
+.competition-expand span { font-size:15px; }
+.competition-table-scroll { flex:1;min-height:0;overflow:auto;scrollbar-color:#ffffff35 transparent; }
+.competition-standings { min-height:0;overflow:visible; }
+.competition-table-scroll .career-standings-list { overflow:visible; }
+.competition-panel .table-head,.competition-panel .zero-standing-row { min-width:510px; }
+.bracket-phase-controls { min-height:60px;padding:10px 16px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid #ffffff19; }
+.bracket-phase-controls>button { width:36px;height:36px;border:1px solid #ffffff30;background:#ffffff08;color:#f0f3ec;font-size:20px;cursor:pointer; }
+.bracket-phase-controls>button:disabled { opacity:.3;cursor:not-allowed; }
+.bracket-phase-controls>b { color:#e9efe5;font:600 22px "Barlow Condensed",sans-serif;letter-spacing:.6px;text-align:center; }
+.bracket-phase-controls small { display:block;margin-top:3px;color:#97a493;font:700 8px sans-serif;letter-spacing:1px; }
+.cup-round-matches { flex:1;min-height:0;padding:12px 14px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));align-content:start;gap:9px;overflow:auto; }
+.cup-tie-team { min-width:0;min-height:43px;padding:6px 8px;display:flex;align-items:center;gap:9px;color:#dce5d8; }
+.cup-tie-team img,.cup-tie-team i { flex:0 0 28px;width:28px;height:28px;display:grid;place-items:center;object-fit:contain;color:#ccd7c8;font-size:8px;font-style:normal; }
+.cup-tie-team b { overflow:hidden;font-size:11px;text-overflow:ellipsis;white-space:nowrap; }
+.cup-tie-vs { display:block;padding:2px 8px;border-top:1px solid #ffffff17;color:#809080;font-size:7px;letter-spacing:1px; }
+.cup-tie.is-player-tie .cup-tie-team { color:#fff0cb; }
+.competition-modal { position:fixed;inset:0;z-index:1000;padding:clamp(10px,3vw,34px);display:grid;place-items:center;background:#020503df;backdrop-filter:blur(8px); }
+.competition-modal-backdrop { position:absolute;inset:0;width:100%;height:100%;border:0;background:transparent;cursor:default; }
+.competition-panel.is-expanded { z-index:1;width:min(100%,1450px);height:min(100%,920px);min-height:0;box-shadow:0 25px 100px #000c; }
+.competition-panel.is-expanded .competition-standings { max-height:none; }
+.competition-panel.is-expanded .cup-round-matches { grid-template-columns:repeat(3,minmax(0,1fr)); }
+@media(max-width:900px) {
+  .career-dashboard-sketch { grid-template-columns:minmax(0,1fr) minmax(0,1fr); }
+  .competition-panel { min-height:460px; }
+}
+@media(max-width:760px) {
+  .competition-panel-toolbar { padding:8px;gap:6px; }
+  .competition-picker-inline { gap:4px; }
+  .competition-picker-inline .competition-choice { min-height:34px;padding:0 8px;font-size:8px; }
+  .competition-expand { min-height:34px;padding:0 8px;font-size:7px; }
+  .cup-round-matches { grid-template-columns:1fr; }
+  .competition-panel.is-expanded .cup-round-matches { grid-template-columns:repeat(2,minmax(0,1fr)); }
+}
+@media(max-width:650px) {
+  .career-dashboard-sketch { grid-template-columns:minmax(0,1fr); }
+  .career-left-stack { min-height:0;grid-template-rows:minmax(160px,auto) minmax(280px,auto); }
+  .career-table-feature,.competition-panel { min-height:540px; }
+  .competition-panel-toolbar { align-items:stretch;flex-direction:column; }
+  .competition-picker-inline { width:100%; }
+  .competition-picker-inline .competition-choice { flex:1 0 auto; }
+  .competition-expand { justify-content:center; }
+  .competition-panel .panel-kicker { min-height:42px;gap:6px; }
+  .competition-panel .table-head,.competition-panel .zero-standing-row { min-width:540px; }
+  .cup-round-matches,.competition-panel.is-expanded .cup-round-matches { grid-template-columns:1fr; }
+  .competition-modal { padding:7px; }
+  .competition-panel.is-expanded { width:100%;height:100%; }
+  .competition-panel.is-expanded .competition-panel-toolbar { flex-direction:row;align-items:center; }
+  .competition-panel.is-expanded .competition-picker-inline { width:auto; }
+  .competition-panel.is-expanded .competition-picker-inline .competition-choice { flex:0 0 auto; }
+}
 .calendar-grid { display:grid;grid-template-columns:repeat(7,minmax(0,1fr));border-top:1px solid #ffffff1e;border-left:1px solid #ffffff1e; }
 .calendar-weekday { min-height:28px;padding:8px 7px;color:#9ca99e;font-size:8px;letter-spacing:.8px;border-right:1px solid #ffffff1e;border-bottom:1px solid #ffffff1e; }
 .calendar-day { min-width:0;min-height:76px;padding:4px;display:flex;flex-direction:column;align-items:stretch;gap:3px;overflow:hidden;border:0;border-right:1px solid #ffffff1e;border-bottom:1px solid #ffffff1e;background:#111a1dcc;color:#e5e9df;text-align:left;cursor:pointer;transition:background .15s; }

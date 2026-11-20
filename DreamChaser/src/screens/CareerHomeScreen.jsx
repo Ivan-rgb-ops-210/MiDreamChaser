@@ -209,15 +209,16 @@ function AnimatedStatValue({ value, decimals = 0 }) {
   }, [value]);
   return <strong>{decimals ? displayValue.toFixed(decimals) : Math.round(displayValue)}</strong>;
 }
-function makeKnockoutBracket(teams, playerTeam, size, seedText) {
+function makeKnockoutBracket(teams, playerTeam, size, seedText, preserveOrder = false) {
   if (teams.length < size || !playerTeam) return [];
   let seed = [...seedText].reduce((sum, char) => (sum * 31 + char.charCodeAt(0)) >>> 0, 11);
   const random = () => { seed = (seed * 1664525 + 1013904223) >>> 0; return seed / 4294967296; };
   const entrants = [...teams].sort(() => random() - .5).slice(0, size);
+  if (preserveOrder) entrants.splice(0, entrants.length, ...teams.slice(0, size));
   if (!entrants.some((team) => String(team.id) === String(playerTeam.id))) entrants[entrants.length - 1] = playerTeam;
   const matches = [];
   for (let index = 0; index < entrants.length; index += 2) matches.push({ home: entrants[index], away: entrants[index + 1] });
-  const rounds = [{ label: size === 16 ? "OCTAVOS" : "SEMIFINALES", matches }];
+  const rounds = [{ label: size === 16 ? "OCTAVOS" : size === 8 ? "CUARTOS" : "SEMIFINALES", matches }];
   let count = matches.length;
   let playerMatchIndex = matches.findIndex((match) => [match.home, match.away].some((team) => String(team.id) === String(playerTeam.id)));
   while (count > 1) {
@@ -228,17 +229,44 @@ function makeKnockoutBracket(teams, playerTeam, size, seedText) {
   }
   return rounds;
 }
-function fixturesFromBracket(rounds, playerTeam, start, idPrefix, competitionName, dayOffset, roundGap) {
+function fixturesFromBracket(rounds, playerTeam, start, idPrefix, competitionName, dayOffset, roundGap, results = {}) {
   return rounds.flatMap((round, index) => {
-    const tie = round.matches.find((match) => [match.home, match.away].some((team) => String(team.id) === String(playerTeam?.id)));
-    if (!tie) return [];
-    const date = new Date(start);
-    date.setDate(start.getDate() + dayOffset + index * roundGap);
-    date.setHours(20, 0, 0, 0);
-    const home = String(tie.home.id) === String(playerTeam?.id);
-    const toClub = (team, side) => ({ id: team.id || `${idPrefix}-${index}-${side}`, name: team.name || team.shortName, shortName: team.shortName || team.name, crest: team.crest || "", tla: team.tla || "" });
-    return [{ id: `${idPrefix}-${index}`, utcDate: date.toISOString(), status: "SCHEDULED", competitionName, homeTeam: toClub(tie.home, "home"), awayTeam: toClub(tie.away, "away"), homeScore: null, awayScore: null, roundName: round.label }];
+    const date = new Date(start); date.setDate(start.getDate() + dayOffset + index * roundGap); date.setHours(20, 0, 0, 0);
+    const toClub = (team, tieIndex, side) => ({ id: team.id || `${idPrefix}-${index}-${tieIndex}-${side}`, name: team.name || team.shortName, shortName: team.shortName || team.name, crest: team.crest || "", tla: team.tla || "" });
+    const resolveWinner = (team) => {
+      const winnerNumber = /^Ganador (\d+)$/.exec(team?.name || "");
+      if (!winnerNumber || index === 0) return team;
+      const previousIndex = Number(winnerNumber[1]) - 1;
+      const previousTie = rounds[index - 1]?.matches[previousIndex];
+      if (!previousTie) return team;
+      const fixture = { id: `${idPrefix}-${index - 1}-${previousIndex}`, homeTeam: toClub(previousTie.home, previousIndex, "home"), awayTeam: toClub(previousTie.away, previousIndex, "away") };
+      const played = results[fixture.id] || simulateOtherFixture(fixture);
+      return Number(played.homeScore) >= Number(played.awayScore) ? previousTie.home : previousTie.away;
+    };
+    return round.matches.map((tie, tieIndex) => {
+      const home = resolveWinner(tie.home), away = resolveWinner(tie.away);
+      return { id: `${idPrefix}-${index}-${tieIndex}`, matchday: index + 1, utcDate: date.toISOString(), status: "SCHEDULED", competitionName, homeTeam: toClub(home, tieIndex, "home"), awayTeam: toClub(away, tieIndex, "away"), homeScore: null, awayScore: null, roundName: round.label };
+    });
   });
+}
+function championsLeagueFixtures(teams, playerTeam, start, seedText) {
+  if (!playerTeam || teams.length < 36) return [];
+  let seed = [...seedText].reduce((sum, char) => (sum * 31 + char.charCodeAt(0)) >>> 0, 17);
+  const random = () => { seed = (seed * 1664525 + 1013904223) >>> 0; return seed / 4294967296; };
+  const entrants = [...teams].sort(() => random() - .5).slice(0, 36);
+  if (!entrants.some((team) => String(team.id) === String(playerTeam.id))) entrants[31] = playerTeam;
+  // UEFA's current format is one 36-club league phase, with eight distinct opponents per club.
+  const rotation = [...entrants]; const fixtures = [];
+  for (let round = 0; round < 8; round += 1) {
+    const date = new Date(start); date.setDate(start.getDate() + 48 + round * 21); date.setHours(20, 0, 0, 0);
+    for (let index = 0; index < 18; index += 1) {
+      let home = rotation[index], away = rotation[35 - index];
+      if ((round + index) % 2) [home, away] = [away, home];
+      fixtures.push({ id: `international-group-${round}-${index}`, matchday: round + 1, stage: "LEAGUE_PHASE", roundName: `FASE DE LIGA · FECHA ${round + 1}`, utcDate: date.toISOString(), status: "SCHEDULED", competitionName: "Champions League", homeTeam: home, awayTeam: away, homeScore: null, awayScore: null });
+    }
+    rotation.splice(1, 0, rotation.pop());
+  }
+  return fixtures;
 }
 function emptyStanding(team) { return { team, played: 0, won: 0, drawn: 0, lost: 0, goalsFor: 0, goalsAgainst: 0, points: 0 }; }
 function applyFixtureResult(table, match) {
@@ -288,10 +316,14 @@ export default function CareerHomeScreen({ profile, screenPath = "/career", onNa
   const [leagueTeamsError, setLeagueTeamsError] = useState("");
   const [calendarMonth, setCalendarMonth] = useState(() => new Date(seasonStartFor(profile).getFullYear(), seasonStartFor(profile).getMonth(), 1));
   const [matches, setMatches] = useState([]);
-  const resultsKey = `dreamchaser.results.v3.${seasonStartFor(profile).getFullYear()}.${profile?.createdAt || profile?.team?.id || profile?.name || "career"}`;
+  const seasonOffsetKey = `dreamchaser.season-offset.${profile?.createdAt || profile?.team?.id || profile?.name || "career"}`;
+  const [seasonOffset, setSeasonOffset] = useState(() => { try { return Math.max(0, Number(localStorage.getItem(seasonOffsetKey)) || 0); } catch { return 0; } });
+  const resultsKey = `dreamchaser.results.v3.${seasonStartFor(profile).getFullYear() + seasonOffset}.${profile?.createdAt || profile?.team?.id || profile?.name || "career"}`;
   const legacyResultsKey = `dreamchaser.results.v2.${profile?.createdAt || profile?.team?.id || profile?.name || "career"}`;
   const [savedResults, setSavedResults] = useState(() => { try { return JSON.parse(localStorage.getItem(resultsKey) || localStorage.getItem(legacyResultsKey) || "{}"); } catch { return {}; } });
   const [selectedCompetition, setSelectedCompetition] = useState("league");
+  const [expandedCompetition, setExpandedCompetition] = useState(false);
+  const [bracketRound, setBracketRound] = useState(0);
   const [selectedDate, setSelectedDate] = useState(() => localDateKey(seasonStartFor(profile)));
   const [matchMode, setMatchMode] = useState("preview");
   const [matchSpeed, setMatchSpeed] = useState(1);
@@ -322,11 +354,14 @@ export default function CareerHomeScreen({ profile, screenPath = "/career", onNa
   const followMatchEvents = useRef(true);
   const leagueName = profile?.league?.name || "Liga por definir";
   const clubName = profile?.team?.name || "Club por definir";
-  const seasonStart = seasonStartFor(profile);
+  const seasonStart = new Date(seasonStartFor(profile)); seasonStart.setFullYear(seasonStart.getFullYear() + seasonOffset);
   const seasonLabel = `${seasonStart.getFullYear()}/${String(seasonStart.getFullYear() + 1).slice(-2)}`;
   const leagueId = profile?.league?.id || profile?.league?.league_id;
   const monthStart = new Date(calendarMonth.getFullYear(), calendarMonth.getMonth(), 1);
   const monthEnd = new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() + 1, 0);
+  const firstSeasonMonth = new Date(seasonStart.getFullYear(), seasonStart.getMonth(), 1);
+  const nextSeasonStart = new Date(seasonStart.getFullYear() + 1, seasonStart.getMonth(), 1);
+  const lastSeasonMonth = new Date(nextSeasonStart.getFullYear(), nextSeasonStart.getMonth() - 1, 1);
   const monthLabel = new Intl.DateTimeFormat("es-AR", { month: "long" }).format(calendarMonth);
   const calendarDays = useMemo(() => {
     const firstDayOffset = (monthStart.getDay() + 6) % 7;
@@ -349,13 +384,31 @@ export default function CareerHomeScreen({ profile, screenPath = "/career", onNa
     matches.filter((match) => competitionTone(match) === "league").forEach((match) => applyFixtureResult(table, match));
     return [...table.values()].sort((a, b) => b.points - a.points || (b.goalsFor - b.goalsAgainst) - (a.goalsFor - a.goalsAgainst) || b.goalsFor - a.goalsFor || a.team.name.localeCompare(b.team.name));
   }, [leagueTeams, matches]);
+  const internationalStandings = useMemo(() => {
+    const table = new Map(internationalTeams.map((team) => [String(team.id), emptyStanding(team)]));
+    matches.filter((match) => match.id?.startsWith("international-group-")).forEach((match) => applyFixtureResult(table, match));
+    return [...table.values()].sort((a, b) => b.points - a.points || (b.goalsFor - b.goalsAgainst) - (a.goalsFor - a.goalsAgainst) || b.goalsFor - a.goalsFor || a.team.name.localeCompare(b.team.name));
+  }, [internationalTeams, matches]);
   const playerPosition = leagueTeams.findIndex((team) => String(team.id) === String(profile?.team?.id));
   const competitionOptions = [{ id: "league", label: leagueName }, { id: "cup", label: /argentina/i.test(profile?.league?.country || "") ? "Copa nacional" : "Copa doméstica" }, ...(playerPosition >= 0 && playerPosition < 4 ? [{ id: "international", label: "Copa internacional" }] : [])];
-  const cupBracket = useMemo(() => makeKnockoutBracket(leagueTeams, profile?.team, 16, `${profile?.team?.id}-domestic-cup`), [leagueTeams, profile?.team?.id]);
-  const internationalBracket = useMemo(() => makeKnockoutBracket(internationalTeams, profile?.team, 16, `${profile?.team?.id}-international`), [internationalTeams, profile?.team?.id]);
-  const nextMatch = matches.find((match) => match.status !== "FINISHED" && [match.homeTeam, match.awayTeam].some((team) => String(team.id) === String(profile?.team?.id))) || matches.find((match) => [match.homeTeam, match.awayTeam].some((team) => String(team.id) === String(profile?.team?.id))) || matches[0];
+  const cupBracket = useMemo(() => makeKnockoutBracket(leagueTeams, profile?.team, 16, `${profile?.team?.id}-domestic-cup-${seasonStart.getFullYear()}`), [leagueTeams, profile?.team?.id, seasonStart.getFullYear()]);
+  const internationalPhaseComplete = matches.filter((match) => match.id?.startsWith("international-group-")).length === 144 && matches.filter((match) => match.id?.startsWith("international-group-")).every((match) => match.status === "FINISHED");
+  const internationalBracket = useMemo(() => {
+    if (!internationalPhaseComplete) return [];
+    const qualified = internationalStandings.slice(0, 8).map((row) => row.team);
+    if (!qualified.some((team) => String(team.id) === String(profile?.team?.id))) return [];
+    const seeded = [qualified[0], qualified[7], qualified[3], qualified[4], qualified[1], qualified[6], qualified[2], qualified[5]];
+    return makeKnockoutBracket(seeded, profile?.team, 8, `${profile?.team?.id}-international-${seasonStart.getFullYear()}`, true);
+  }, [internationalPhaseComplete, internationalStandings, profile?.team?.id, seasonStart.getFullYear()]);
+  const eliminated = (prefix) => {
+    const played = matches.filter((match) => match.id?.startsWith(prefix) && savedResults[match.id]?.status === "FINISHED" && [match.homeTeam, match.awayTeam].some((team) => String(team.id) === String(profile?.team?.id)));
+    const latest = played.at(-1); const result = latest && savedResults[latest.id];
+    return Boolean(result && result.homeScore !== result.awayScore && (String(latest.homeTeam.id) === String(profile?.team?.id) ? result.homeScore < result.awayScore : result.awayScore < result.homeScore));
+  };
+  const nextMatch = matches.find((match) => match.status !== "FINISHED" && match.status !== "CANCELED" && (!match.id?.startsWith("cup-") || !eliminated("cup-")) && (!match.id?.startsWith("international-knockout-") || !eliminated("international-knockout-")) && [match.homeTeam, match.awayTeam].some((team) => String(team.id) === String(profile?.team?.id))) || null;
   const currentMatch = (matchMode === "finished" || matchMode === "summary") && matchResult?.matchId ? matches.find((match) => match.id === matchResult.matchId) || nextMatch : nextMatch;
   const selectedBracket = selectedCompetition === "international" ? internationalBracket : cupBracket;
+  useEffect(() => { setBracketRound((round) => Math.min(round, Math.max(0, selectedBracket.length - 1))); }, [selectedCompetition, selectedBracket.length]);
   const playerCareerMatches = matches.filter((match) => savedResults[match.id]?.status === "FINISHED" && [match.homeTeam, match.awayTeam].some((team) => String(team.id) === String(profile?.team?.id)));
   const clubCareerStats = playerCareerMatches.reduce((total, match) => {
     const result = savedResults[match.id];
@@ -387,12 +440,13 @@ export default function CareerHomeScreen({ profile, screenPath = "/career", onNa
   const leagueFinished = Boolean(playerLeagueRow && playerLeagueRow.played >= Math.max(1, leagueTeams.length * 2 - 2));
   const leagueRank = playerLeagueRow ? leagueStandings.findIndex((row) => String(row.team.id) === String(profile?.team?.id)) + 1 : 0;
   const objectiveCompetitionPrefix = objectiveSpec.collective.kind === "international" ? "international-" : "cup-";
-  const cupProgressMatches = matches.filter((match) => match.id?.startsWith(objectiveCompetitionPrefix)).sort((a,b) => Number(a.id.split("-")[1]) - Number(b.id.split("-")[1]));
+  const cupProgressMatches = matches.filter((match) => match.id?.startsWith(objectiveCompetitionPrefix) && [match.homeTeam, match.awayTeam].some((team) => String(team.id) === String(profile?.team?.id))).sort((a,b) => Number(a.id.split("-")[1]) - Number(b.id.split("-")[1]));
   const playedCupMatches = cupProgressMatches.filter((match) => savedResults[match.id]);
   const cupWins = playedCupMatches.filter((match) => { const result = savedResults[match.id]; return String(match.homeTeam.id) === String(profile?.team?.id) ? result.homeScore > result.awayScore : result.awayScore > result.homeScore; }).length;
   const lastCupMatch = playedCupMatches.at(-1);
   const lastCupResult = lastCupMatch && savedResults[lastCupMatch.id];
-  const cupEliminated = Boolean(lastCupResult && (lastCupResult.homeScore === lastCupResult.awayScore || (String(lastCupMatch.homeTeam.id) === String(profile?.team?.id) ? lastCupResult.homeScore < lastCupResult.awayScore : lastCupResult.awayScore < lastCupResult.homeScore)));
+  const internationalRank = internationalStandings.findIndex((row) => String(row.team.id) === String(profile?.team?.id)) + 1;
+  const cupEliminated = objectiveSpec.collective.kind === "international" ? internationalPhaseComplete && internationalRank > 8 || eliminated("international-knockout-") : Boolean(lastCupResult && lastCupResult.homeScore !== lastCupResult.awayScore && (String(lastCupMatch.homeTeam.id) === String(profile?.team?.id) ? lastCupResult.homeScore < lastCupResult.awayScore : lastCupResult.awayScore < lastCupResult.homeScore));
   const collectiveComplete = objectiveSpec.collective.kind === "league" ? leagueFinished && leagueRank > 0 && leagueRank <= objectiveSpec.collective.target : cupWins >= objectiveSpec.collective.target;
   const collectiveFailed = objectiveSpec.collective.kind === "league" ? leagueFinished && !collectiveComplete : cupEliminated && !collectiveComplete;
   const statisticalComplete = clubCareerStats.goals >= objectiveSpec.goals && clubCareerStats.assists >= objectiveSpec.assists;
@@ -431,8 +485,8 @@ export default function CareerHomeScreen({ profile, screenPath = "/career", onNa
     if (!leagueTeams.length || !profile?.team?.id) return;
     const playerIndex = leagueTeams.findIndex((team) => String(team.id) === String(profile.team.id));
     if (playerIndex < 0) { setMatches([]); return; }
-    const start = seasonStartFor(profile);
-    let seed = [...`${profile.team.id}-${profile.createdAt || "career"}`].reduce((sum, char) => (sum * 31 + char.charCodeAt(0)) >>> 0, 7);
+    const start = new Date(seasonStartFor(profile)); start.setFullYear(start.getFullYear() + seasonOffset);
+    let seed = [...`${profile.team.id}-${profile.createdAt || "career"}-${start.getFullYear()}`].reduce((sum, char) => (sum * 31 + char.charCodeAt(0)) >>> 0, 7);
     const random = () => { seed = (seed * 1664525 + 1013904223) >>> 0; return seed / 4294967296; };
     const entrants = [...leagueTeams].sort(() => random() - .5);
     if (entrants.length % 2) entrants.push(null);
@@ -455,11 +509,26 @@ export default function CareerHomeScreen({ profile, screenPath = "/career", onNa
       return round.map(({ homeTeam, awayTeam }, fixtureIndex) => ({ id: `career-${roundIndex}-${fixtureIndex}`, matchday: roundIndex + 1, utcDate: date.toISOString(), status: "SCHEDULED", competitionName: leagueName, homeTeam, awayTeam, homeScore: null, awayScore: null }));
     });
     const cupName = /argentina/i.test(profile.league?.country || "") ? "Copa nacional" : "Copa doméstica";
-    const cupFixtures = fixturesFromBracket(cupBracket, profile.team, start, "cup", cupName, 50, 35);
-    const internationalFixtures = fixturesFromBracket(internationalBracket, profile.team, start, "international", "Copa internacional", 175, 21);
-    const ordered = [...leagueFixtures, ...cupFixtures, ...internationalFixtures].sort((a, b) => new Date(a.utcDate) - new Date(b.utcDate));
-    setMatches(ordered.map((match) => savedResults[match.id] ? { ...match, ...savedResults[match.id] } : match));
-  }, [leagueTeams, profile?.team?.id, profile?.createdAt, profile?.league?.country, leagueName, cupBracket, internationalBracket, savedResults]);
+    const cupFixtures = fixturesFromBracket(cupBracket, profile.team, start, "cup", cupName, 50, 35, savedResults);
+    const internationalFixtures = [
+      ...championsLeagueFixtures(internationalTeams, profile.team, start, `${profile.team.id}-${profile.createdAt || "career"}-${start.getFullYear()}-champions`),
+      ...fixturesFromBracket(internationalBracket, profile.team, start, "international-knockout", "Champions League", 245, 24, savedResults),
+    ];
+    const userLeagueDates = leagueFixtures.filter((match) => [match.homeTeam, match.awayTeam].some((team) => String(team.id) === String(profile.team.id))).map((match) => new Date(match.utcDate));
+    const scheduledCups = [...cupFixtures, ...internationalFixtures].sort((a, b) => new Date(a.utcDate) - new Date(b.utcDate)).map((match) => {
+      const date = new Date(match.utcDate);
+      for (let day = 0; day < 21 && userLeagueDates.some((leagueDate) => Math.abs(leagueDate - date) < 48 * 60 * 60 * 1000); day += 1) date.setDate(date.getDate() + 1);
+      return { ...match, utcDate: date.toISOString() };
+    });
+    const userDates = [...userLeagueDates].sort((a, b) => a - b);
+    scheduledCups.filter((match) => [match.homeTeam, match.awayTeam].some((team) => String(team.id) === String(profile.team.id))).sort((a, b) => new Date(a.utcDate) - new Date(b.utcDate)).forEach((match) => {
+      const date = new Date(match.utcDate);
+      while (userDates.some((other) => Math.abs(other - date) < 48 * 60 * 60 * 1000)) date.setDate(date.getDate() + 1);
+      match.utcDate = date.toISOString(); userDates.push(date); userDates.sort((a, b) => a - b);
+    });
+    const ordered = [...leagueFixtures, ...scheduledCups].sort((a, b) => new Date(a.utcDate) - new Date(b.utcDate));
+    setMatches(ordered.map((match) => savedResults[match.id] ? { ...match, ...savedResults[match.id], utcDate: match.utcDate, homeTeam: match.homeTeam, awayTeam: match.awayTeam } : match));
+  }, [leagueTeams, internationalTeams, profile?.team?.id, profile?.createdAt, profile?.league?.country, leagueName, cupBracket, internationalBracket, savedResults, seasonOffset]);
   useEffect(() => {
     let active = true;
     fetch("/api/football/champions")
@@ -481,9 +550,18 @@ export default function CareerHomeScreen({ profile, screenPath = "/career", onNa
     load(nextMatch?.awayTeam, setAwayRoster);
   }, [nextMatch?.homeTeam?.id, nextMatch?.awayTeam?.id]);
   function changeCalendarMonth(offset) {
-    const nextMonth = new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() + offset, 1);
+    const requested = new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() + offset, 1);
+    const nextMonth = requested < firstSeasonMonth ? firstSeasonMonth : requested > lastSeasonMonth ? lastSeasonMonth : requested;
     setCalendarMonth(nextMonth);
     setSelectedDate(`${nextMonth.getFullYear()}-${String(nextMonth.getMonth() + 1).padStart(2, "0")}-01`);
+  }
+  function beginNextSeason() {
+    const nextOffset = seasonOffset + 1;
+    try { localStorage.setItem(seasonOffsetKey, String(nextOffset)); } catch { /* La temporada sigue en memoria si el almacenamiento no está disponible. */ }
+    setSavedResults({}); setMatchResult(null); setMatchMode("preview"); setSeasonOffset(nextOffset);
+    const nextStart = new Date(seasonStart); nextStart.setFullYear(nextStart.getFullYear() + 1);
+    setCalendarMonth(new Date(nextStart.getFullYear(), nextStart.getMonth(), 1));
+    setSelectedDate(localDateKey(nextStart));
   }
   const isUserHome = String(currentMatch?.homeTeam?.id) === String(profile?.team?.id);
   const homeLineup = useMemo(() => makeLineup(currentMatch?.homeTeam?.name || clubName, profile, isUserHome, homeRoster), [currentMatch?.id, currentMatch?.homeTeam?.name, profile?.name, profile?.number, isUserHome, clubName, homeRoster]);
@@ -506,7 +584,7 @@ export default function CareerHomeScreen({ profile, screenPath = "/career", onNa
     if (matchMode !== "finished" || !playedMatch || !playedMatchId || savedResults[playedMatchId]) return;
     const result = { status: "FINISHED", homeScore: matchResult?.homeGoals || 0, awayScore: matchResult?.awayGoals || 0, playerGoals: matchResult?.userGoals || 0, playerAssists: matchResult?.userAssists || 0, scorers: (matchResult?.events || []).filter((event) => event.scoreDelta).map((event) => ({ minute: event.minute, team: event.team, names: event.involved })) };
     const updated = { ...savedResults, [playedMatchId]: result };
-    const sameDay = matches.filter((match) => match.id !== playedMatchId && match.matchday === playedMatch.matchday && competitionTone(match) === "league" && !updated[match.id]);
+    const sameDay = matches.filter((match) => match.id !== playedMatchId && match.matchday === playedMatch.matchday && competitionTone(match) === competitionTone(playedMatch) && !updated[match.id]);
     sameDay.forEach((match) => { updated[match.id] = simulateOtherFixture(match); });
     setSavedResults(updated);
     setMatches((current) => current.map((match) => updated[match.id] ? { ...match, ...updated[match.id] } : match));
@@ -611,6 +689,21 @@ export default function CareerHomeScreen({ profile, screenPath = "/career", onNa
     return () => { active = false; };
   }, [leagueId]);
 
+  const renderCompetitionPanel = (expanded = false) => {
+    const showLeague = selectedCompetition === "league";
+    const showChampionsTable = selectedCompetition === "international" && !internationalPhaseComplete;
+    const leagueRows = showLeague ? leagueStandings : internationalStandings;
+    const rows = showLeague ? leagueTeams : internationalTeams;
+    const competitionTitle = showLeague ? leagueName.toUpperCase() : showChampionsTable ? "CHAMPIONS LEAGUE" : "COPA DOMÉSTICA";
+    const round = selectedBracket[bracketRound];
+    return <article className={`career-table-panel competition-panel ${showLeague ? "career-table-feature" : `career-cup-bracket career-cup-bracket--${selectedCompetition}`} ${expanded ? "is-expanded" : ""}`}>
+      <div className="competition-panel-toolbar"><div className="competition-picker-inline" role="group" aria-label="Elegir competición">{competitionOptions.map((competition) => <button key={competition.id} type="button" className={`competition-choice competition-choice--${competition.id} ${selectedCompetition === competition.id ? "is-selected" : ""}`} onClick={() => { setSelectedCompetition(competition.id); setBracketRound(0); }} aria-pressed={selectedCompetition === competition.id}>{competition.label}</button>)}</div>{expanded ? <button type="button" className="competition-expand" onClick={() => setExpandedCompetition(false)}>CERRAR <span>×</span></button> : <button type="button" className="competition-expand" onClick={() => setExpandedCompetition(true)}>AMPLIAR <span>⛶</span></button>}</div>
+      <div className="panel-kicker"><span>02</span> {competitionTitle}{showLeague || showChampionsTable ? <b>CLASIFICACIÓN EN VIVO</b> : <b>{round?.label || (internationalPhaseComplete ? "NO CLASIFICADO" : "EN PREPARACIÓN")}</b>}</div>
+      {(showLeague || showChampionsTable) && <><div className="competition-table-scroll"><div className="table-head career-zero-head"><span>#</span><span>CLUB</span><span>PJ</span><span>G</span><span>E</span><span>P</span><span>GF</span><span>GC</span><span>DG</span><span>PTS</span></div><div className="career-standings-list competition-standings">{showLeague && leagueTeamsLoading ? <div className="table-empty"><p>Cargando clubes…</p></div> : showLeague && leagueTeamsError ? <div className="table-empty"><p>{leagueTeamsError}</p></div> : leagueRows.length ? leagueRows.map((row, index) => <div className={String(row.team.id) === String(profile?.team?.id) ? "zero-standing-row is-player-team" : "zero-standing-row"} key={row.team.id || row.team.name}><span>{index + 1}</span><span className="standing-team">{row.team.crest && <img src={row.team.crest} alt="" />}<b>{row.team.shortName || row.team.name}</b></span>{[row.played,row.won,row.drawn,row.lost,row.goalsFor,row.goalsAgainst,row.goalsFor-row.goalsAgainst,row.points].map((value, column) => <span className="zero-stat" key={column}>{value}</span>)}</div>) : <div className="table-empty"><p>{rows.length ? "La tabla se actualizará al jugar los partidos." : "Cargando equipos de la competición…"}</p></div>}</div></div><div className="table-foot"><span>{rows.length} CLUBES</span><span>{showChampionsTable ? "36 CLUBES · 8 FECHAS · TOP 8 A OCTAVOS" : "SE ACTUALIZA AL FINALIZAR CADA PARTIDO"}</span></div></>}
+      {!showLeague && !showChampionsTable && round && <><div className="bracket-phase-controls"><button type="button" aria-label="Fase anterior" disabled={bracketRound <= 0} onClick={() => setBracketRound((value) => Math.max(0, value - 1))}>←</button><b>{round.label} <small>FASE {bracketRound + 1} DE {selectedBracket.length}</small></b><button type="button" aria-label="Fase siguiente" disabled={bracketRound >= selectedBracket.length - 1} onClick={() => setBracketRound((value) => Math.min(selectedBracket.length - 1, value + 1))}>→</button></div><div className="cup-round-matches">{round.matches.map((match, matchIndex) => { const playerTie = [match.home, match.away].some((team) => String(team.id) === String(profile?.team?.id)); return <div className={`cup-tie ${playerTie ? "is-player-tie" : ""}`} key={`${bracketRound}-${matchIndex}`}><span className="cup-tie-team">{match.home.crest ? <img src={match.home.crest} alt="" /> : <i>{match.home.tla || "DC"}</i>}<b>{match.home.shortName || match.home.name}</b></span><span className="cup-tie-vs">VS</span><span className="cup-tie-team">{match.away.crest ? <img src={match.away.crest} alt="" /> : <i>{match.away.tla || "DC"}</i>}<b>{match.away.shortName || match.away.name}</b></span></div>; })}</div><div className="table-foot"><span>{selectedCompetition === "international" ? "TOP 8 DE LA FASE DE LIGA" : "SORTEO DE TEMPORADA"}</span><span>CRUCES DE {round.label}</span></div></>}
+      {!showLeague && !showChampionsTable && !round && <div className="cup-bracket-empty">{selectedCompetition === "cup" ? "El cuadro estará disponible cuando se carguen los equipos." : internationalPhaseComplete ? "Tu equipo terminó fuera de los ocho puestos de clasificación directa." : "La fase eliminatoria empieza al terminar la fase de liga."}</div>}
+    </article>;
+  };
 
   return <main className={`career-shell ${screenPath === "/match" || screenPath === "/match-summary" ? "matchday-route" : ""}`}>
     <Stadium />
@@ -625,7 +718,6 @@ export default function CareerHomeScreen({ profile, screenPath = "/career", onNa
     <nav className="career-topnav" aria-label="Secciones de carrera">{NAV_ITEMS.map(([id, label]) => <button key={id} className={visibleSection === id ? "is-current" : ""} onClick={() => { setSection(id); setMatchMode("preview"); onNavigate("/career"); }} aria-current={visibleSection === id ? "page" : undefined}>{label}</button>)}</nav>
 
     {visibleSection === "home" ? <section className="career-home-content" id="inicio">
-      <div className="home-competition-picker"><span>COMPETICIÓN</span>{competitionOptions.map((competition) => <button key={competition.id} type="button" className={`competition-choice competition-choice--${competition.id} ${selectedCompetition === competition.id ? "is-selected" : ""}`} onClick={() => setSelectedCompetition(competition.id)} aria-pressed={selectedCompetition === competition.id}>{competition.label}</button>)}</div>
       <div className="career-dashboard career-dashboard-sketch">
         <div className="career-left-stack">
           <button type="button" className="career-match-panel" onClick={() => { setMatchMode("preview"); setSection("play"); onNavigate("/match"); }} aria-label="Ver próximo partido">
@@ -633,9 +725,9 @@ export default function CareerHomeScreen({ profile, screenPath = "/career", onNa
           </button>
           <article className="career-empty-feature career-lower-empty" aria-label="Espacio reservado"><span>DC</span></article>
         </div>
-        <article className={`career-table-panel career-table-feature ${selectedCompetition !== "league" ? "is-hidden" : ""}`}><div className="panel-kicker"><span>02</span> TABLA DE {leagueName.toUpperCase()} <b>CLASIFICACIÓN EN VIVO</b></div><div className="table-head career-zero-head"><span>#</span><span>CLUB</span><span>PJ</span><span>G</span><span>E</span><span>P</span><span>GF</span><span>GC</span><span>DG</span><span>PTS</span></div><div className="career-standings-list">{leagueTeamsLoading ? <div className="table-empty"><p>Cargando clubes…</p></div> : leagueTeamsError ? <div className="table-empty"><p>{leagueTeamsError}</p></div> : leagueStandings.length ? leagueStandings.map((row, index) => <div className={String(row.team.id) === String(profile?.team?.id) ? "zero-standing-row is-player-team" : "zero-standing-row"} key={row.team.id || row.team.name}><span>{index + 1}</span><span className="standing-team">{row.team.crest && <img src={row.team.crest} alt="" />}<b>{row.team.shortName || row.team.name}</b></span>{[row.played,row.won,row.drawn,row.lost,row.goalsFor,row.goalsAgainst,row.goalsFor-row.goalsAgainst,row.points].map((value, column) => <span className="zero-stat" key={column}>{value}</span>)}</div>) : <div className="table-empty"><p>No hay clubes disponibles para mostrar.<small>Revisá la conexión con la API de la liga.</small></p></div>}</div><div className="table-foot"><span>{leagueTeams.length} CLUBES</span><span>SE ACTUALIZA AL FINALIZAR CADA PARTIDO</span></div></article>
-        {selectedCompetition !== "league" && <article className={`career-cup-bracket career-cup-bracket--${selectedCompetition}`}><div className="panel-kicker"><span>02</span> CUADRO · {competitionOptions.find((item) => item.id === selectedCompetition)?.label.toUpperCase()} <b>{selectedBracket.length ? "ELIMINACIÓN DIRECTA" : "EN PREPARACIÓN"}</b></div>{selectedBracket.length ? <div className="cup-bracket-rounds">{selectedBracket.map((round, roundIndex) => <section className="cup-round" key={`${round.label}-${roundIndex}`}><h3>{round.label}<small>RONDA {roundIndex + 1}</small></h3>{round.matches.map((match, matchIndex) => { const playerTie = [match.home, match.away].some((team) => String(team.id) === String(profile?.team?.id)); return <div className={`cup-tie ${playerTie ? "is-player-tie" : ""}`} key={`${roundIndex}-${matchIndex}`}><span>{match.home.shortName || match.home.name}</span><i>vs</i><span>{match.away.shortName || match.away.name}</span></div>; })}</section>)}</div> : <div className="cup-bracket-empty">{leagueTeamsLoading ? "Cargando cuadro…" : selectedCompetition === "cup" ? "El cuadro estará disponible cuando se carguen los equipos." : "Esta carrera no clasificó a la copa internacional."}</div>}<div className="table-foot"><span>{selectedCompetition === "international" ? "CLASIFICACIÓN SEGÚN PUESTO DE LIGA" : "SORTEO DE TEMPORADA"}</span><span>CAMINO DEL EQUIPO RESALTADO</span></div></article>}
+        {renderCompetitionPanel()}
       </div>
+      {expandedCompetition && <div className="competition-modal" role="dialog" aria-modal="true" aria-label={`Vista ampliada: ${selectedCompetition === "league" ? leagueName : selectedCompetition === "cup" ? "Copa doméstica" : "Champions League"}`}><button className="competition-modal-backdrop" aria-label="Cerrar vista ampliada" onClick={() => setExpandedCompetition(false)} />{renderCompetitionPanel(true)}</div>}
       <footer className="career-footer"><span>UNA CARRERA. INFINITAS HISTORIAS.</span><span>GUARDADO EN LA NUBE <i>●</i></span></footer>
     </section> : visibleSection === "play" ? <section className="career-home-content career-section-view">
       <div className="career-heading"><div><span className="career-eyebrow">MODO CARRERA · {clubName.toUpperCase()}</span><h1>DÍA DE PARTIDO</h1><p>{currentMatch?.competitionName || leagueName} · Temporada {seasonLabel}</p></div></div>
@@ -669,7 +761,7 @@ export default function CareerHomeScreen({ profile, screenPath = "/career", onNa
     </section> : visibleSection === "training" ? <TrainingScreen profile={profile} energy={energy} trainingUsed={trainingUsed} onBack={() => setSection("home")} onStart={(skill) => setTrainingState({ skill, startedAt: Date.now() })} trainingState={trainingState} onComplete={async ({ skill, points, energyCost }) => { const before = Number(profile.stats?.[skill] || 0); const after = clamp(before + points, 0, 100); setEnergy((value) => clamp(value - energyCost, 0, 100)); setTrainingUsed(true); setTrainingState(null); setSection("training-result"); setTrainingResult({ skill, points, before, after }); if (points) await onUpdateProfile({ ...profile, stats: { ...profile.stats, [skill]: after } }); }} /> : section === "training-result" ? <TrainingResultScreen result={trainingResult} onBack={() => { setSection("training"); onNavigate("/career"); }} /> : visibleSection === "calendar" ? <section className="career-home-content career-section-view">
       <div className="calendar-layout">
         <div className="calendar-main">
-          <header className="calendar-title"><div><span className="career-eyebrow">MODO CARRERA · {leagueName.toUpperCase()}</span><h1>CALENDARIO <span>{profile?.league?.emblem ? <img src={profile.league.emblem} alt="" /> : "DC"}</span></h1></div><div className="calendar-controls"><button aria-label="Mes anterior" onClick={() => changeCalendarMonth(-1)}>‹</button><button aria-label="Mes siguiente" onClick={() => changeCalendarMonth(1)}>›</button></div></header>
+          <header className="calendar-title"><div><span className="career-eyebrow">MODO CARRERA · {leagueName.toUpperCase()} · {seasonLabel}</span><h1>CALENDARIO <span>{profile?.league?.emblem ? <img src={profile.league.emblem} alt="" /> : "DC"}</span></h1></div><div className="calendar-controls">{leagueFinished && !nextMatch && <button type="button" className="next-season-button" onClick={beginNextSeason}>NUEVA TEMPORADA ↗</button>}<button aria-label="Mes anterior" disabled={monthStart <= firstSeasonMonth} onClick={() => changeCalendarMonth(-1)}>‹</button><button aria-label="Mes siguiente" disabled={monthStart >= lastSeasonMonth} onClick={() => changeCalendarMonth(1)}>›</button></div></header>
           <div className="calendar-grid" aria-label={`Calendario de ${monthLabel} de ${calendarMonth.getFullYear()}`}>
             {["DOM", "LUN", "MAR", "MIÉ", "JUE", "VIE", "SÁB"].map((day) => <div className="calendar-weekday" key={day}>{day}</div>)}
             {calendarDays.map(({ date, inMonth, key }) => {
